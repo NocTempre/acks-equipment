@@ -17,15 +17,13 @@
  *      manifest/download point at releases/latest/download.
  *   6. i18n: every "<ID-UPPERCASED>.x" key referenced in scripts/templates/
  *      ruledata exists in lang/en.json (dynamic-suffix tolerant).
- *   7. Namespacing: identifiers that land in SHARED registries carry the
- *      module key so nothing collides and every artefact greps back to its
- *      owner — globalThis exposures and custom hooks start with the
- *      camelCased module id; Handlebars helpers with that or the declared
- *      pack-id prefix; lang keys with "<ID-UPPERCASED>." (Foundry-owned
- *      roots like TYPES.* allowlisted); top-level pack _ids with the
- *      module.json `flags.<id>.idPrefix` when declared (undeclared = warning,
- *      e.g. grandfathered random ids); top-level CSS classes warn when
- *      unprefixed (renames touch templates — fix deliberately).
+ *   7. Namespacing (one form per registry, no legacy exceptions — the
+ *      2026-07-15 migration brought every module into conformance):
+ *      globalThis exposures, custom hooks, and Handlebars helpers start with
+ *      the camelCased module id; lang keys with "<ID-UPPERCASED>."
+ *      (Foundry-owned roots like TYPES.* allowlisted); top-level CSS classes
+ *      with the module id; top-level pack _ids with the mandatory
+ *      module.json `flags.<id>.idPrefix` short key.
  *
  * Usage:  npm run validate
  */
@@ -225,7 +223,7 @@ if (module_?.id) {
   // 7b. top-level pack _ids start with the declared idPrefix.
   if (fs.existsSync(sourceRoot)) {
     if (!idPrefix) {
-      warn("module.json", `no flags["${id}"].idPrefix declared — pack _ids are unchecked (declare one for new packs; grandfathered random ids stay undeclared)`);
+      fail("module.json", `modules with packs must declare flags["${id}"].idPrefix (short key prefixing every pack document _id)`);
     } else {
       walk(sourceRoot, (full) => {
         if (!full.endsWith(".json")) return;
@@ -249,24 +247,20 @@ if (module_?.id) {
     for (const m of text.matchAll(/globalThis\.([A-Za-z_$][\w$]*)\s*(?:\?\?=|\|\|=|=(?!=))/g)) {
       if (!m[1].startsWith(camelNs)) fail(rel(full), `globalThis.${m[1]} must start with "${camelNs}"`);
     }
-    // Accepted namespaced forms: camelCase ("acksInfluenceFoo"), id-dot
-    // ("acks-influence.foo"), or the interpolated source form `${MODULE_ID}.foo`
-    // (MODULE_ID is the id by family convention in scripts/constants.mjs).
-    const namespaced = (name) =>
-      name.startsWith(camelNs) || name.startsWith(`${id}.`) || name.startsWith("${MODULE_ID}.");
+    // One form only: the camelCase module namespace (e.g. "acksInfluenceFoo").
     for (const m of text.matchAll(/Hooks\.(?:call|callAll)\(\s*["'`]([^"'`]+)["'`]/g)) {
-      if (namespaced(m[1])) continue;
+      if (m[1].startsWith(camelNs)) continue;
       if (/^acks/i.test(m[1])) warn(rel(full), `hook "${m[1]}" fires under a foreign acks-* namespace — fine only if it's a deliberate cross-module call`);
-      else fail(rel(full), `custom hook "${m[1]}" must start with "${camelNs}" or "${id}."`);
+      else fail(rel(full), `custom hook "${m[1]}" must start with "${camelNs}"`);
     }
     for (const m of text.matchAll(/Handlebars\.registerHelper\(\s*["'`]([^"'`]+)["'`]/g)) {
-      if (namespaced(m[1]) || (idPrefix && m[1].startsWith(idPrefix))) continue;
+      if (m[1].startsWith(camelNs)) continue;
       if (/^acks/i.test(m[1])) warn(rel(full), `helper "${m[1]}" uses a foreign acks-* namespace`);
-      else fail(rel(full), `Handlebars helper "${m[1]}" must start with "${camelNs}"${idPrefix ? `, "${idPrefix}",` : ""} or "${id}."`);
+      else fail(rel(full), `Handlebars helper "${m[1]}" must start with "${camelNs}"`);
     }
   });
 
-  // 7d. top-level CSS classes should carry the key (warning: renames touch templates).
+  // 7d. top-level CSS classes carry the module id (kebab, like the id itself).
   const cssSeen = new Set();
   walk(path.join(ROOT, "styles"), (full) => {
     if (!full.endsWith(".css")) return;
@@ -274,10 +268,9 @@ if (module_?.id) {
       const m = /^\s*\.([a-zA-Z][\w-]*)/.exec(line);
       if (!m) continue;
       const cls = m[1];
-      const ok = cls.startsWith(id) || cls.startsWith(camelNs) || (idPrefix && cls.startsWith(idPrefix));
-      if (!ok && !cssSeen.has(cls)) {
+      if (!cls.startsWith(id) && !cssSeen.has(cls)) {
         cssSeen.add(cls);
-        warn(rel(full), `top-level class ".${cls}" is not module-prefixed ("${id}-…")`);
+        fail(rel(full), `top-level class ".${cls}" must start with "${id}"`);
       }
     }
   });
