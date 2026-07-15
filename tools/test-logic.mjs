@@ -10,7 +10,7 @@ import assert from "node:assert";
 
 // Overlay toggles are read through game.settings; tests flip this to prove the
 // overlay is inert when disabled and correct when enabled.
-const SETTINGS_STATE = { overlayShieldVariants: false };
+const SETTINGS_STATE = { overlayShieldVariants: false, overlayManeuvers: true };
 globalThis.game = {
   settings: {
     get: (_m, k) => (k === "defaultHandBudget" ? 2 : k === "enforceMode" ? "resolve" : SETTINGS_STATE[k]),
@@ -287,5 +287,37 @@ const phal = wsActor([weapon("Sword", { melee: true, id: "s5" }), shieldItem("Ph
 const phalLo = getLoadout(phal);
 check("phalanx in hand → weaponShield style, costs a hand", phalLo.activeStyle === "weaponShield" && phalLo.handsUsed === 2);
 SETTINGS_STATE.overlayShieldVariants = false; // leave global state clean
+
+// --- Phase 5b: special maneuvers overlay -------------------------------------
+const { maneuverMods, MANEUVERS } = await import(new URL("overlays/maneuvers.mjs", S));
+const plainActor = actor([]);
+const mWhip = classifyWeapon(weapon("Whip", { melee: true }));
+const mNet = classifyWeapon(weapon("Net", { melee: true }));
+const mSword = classifyWeapon(weapon("Sword", { melee: true }));
+
+check("base maneuver penalty is −4", maneuverMods(plainActor, mSword, "knockDown").attackPenalty === -4);
+// Combat Trickery: −4 → −2 AND the target saves at −2.
+const trick = actor([], { effects: [marker("maneuverTrickery", "knockDown")] });
+let mm = maneuverMods(trick, mSword, "knockDown");
+check("Combat Trickery → penalty −2 and target saves −2", mm.attackPenalty === -2 && mm.targetSaveMod === -2);
+// No-save maneuver: Trickery reduces the penalty by 4 instead of 2.
+const trickInc = actor([], { effects: [marker("maneuverTrickery", "incapacitate")] });
+mm = maneuverMods(trickInc, mSword, "incapacitate");
+check("Trickery on a no-save maneuver → penalty 0, no save mod", mm.attackPenalty === 0 && mm.targetSaveMod === 0 && MANEUVERS.incapacitate.save === null);
+// Weapon qualities: Flexible (whip) +2 to disarm; Entangling (net) +2 to wrestle.
+check("Flexible whip → disarm at −2", maneuverMods(plainActor, mWhip, "disarm").attackPenalty === -2);
+check("Entangling net → wrestle at −2", maneuverMods(plainActor, mNet, "wrestling").attackPenalty === -2);
+check("quality does not apply to an unrelated maneuver", maneuverMods(plainActor, mWhip, "overrun").attackPenalty === -4);
+// Trickery and weapon quality stack: −4 +2 +2 = 0.
+const trickDisarm = actor([], { effects: [marker("maneuverTrickery", "disarm")] });
+check("Trickery + Flexible stack → disarm at 0", maneuverMods(trickDisarm, mWhip, "disarm").attackPenalty === 0);
+// Sunder: −4 against shafts, −6 otherwise.
+check("sunder −6 normally, −4 vs staff/spear/polearm", maneuverMods(plainActor, mSword, "sunder").attackPenalty === -6 && maneuverMods(plainActor, mSword, "sunder", { targetShaft: true }).attackPenalty === -4);
+// Disarm: two-handed grip gives the target +4 to save.
+check("disarm vs two-handed grip → target saves +4", maneuverMods(plainActor, mSword, "disarm", { targetTwoHanded: true }).targetSaveMod === 4);
+// Hooked (MM) acts as Trickery for disarm, but must not double up with it.
+check("hooked weapon → disarm −2, target saves −2", (() => { const r = maneuverMods(plainActor, mSword, "disarm", { hooked: true }); return r.attackPenalty === -2 && r.targetSaveMod === -2; })());
+check("hooked does not stack on top of Trickery", maneuverMods(trickDisarm, mSword, "disarm", { hooked: true }).attackPenalty === -2);
+check("unknown maneuver → null", maneuverMods(plainActor, mSword, "nonsense") === null);
 
 console.log(`test-logic: all ${pass} checks passed`);

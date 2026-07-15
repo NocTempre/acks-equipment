@@ -27,10 +27,6 @@
         "name": "Overlay: shield variants (JJ)",
         "hint": "Buckler, auxiliary, crescent, heater, kite, and phalanx shields with strap positions and vulnerable rules. Judges Journal pp. 407–408."
       },
-      "overlayMasterwork": {
-        "name": "Overlay: masterwork items (RR)",
-        "hint": "Masterwork weapon/armour/instrument tiers. Revised Rulebook p. 159."
-      },
       "overlayManeuvers": {
         "name": "Overlay: combat maneuvers",
         "hint": "Special-maneuver helpers (disarm, knock down, wrestle, sunder, etc.) aware of Combat Trickery and weapon qualities. Revised Rulebook pp. 305–306."

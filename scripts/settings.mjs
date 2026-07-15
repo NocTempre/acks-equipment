@@ -74,7 +74,6 @@ export function registerSettings() {
     });
 
   overlay(SETTINGS.OVERLAY_SHIELD_VARIANTS);
-  overlay(SETTINGS.OVERLAY_MASTERWORK, true);
   overlay(SETTINGS.OVERLAY_MANEUVERS, true);
   overlay(SETTINGS.OVERLAY_ITEM_LOSS);
   overlay(SETTINGS.OVERLAY_MOUNTED, true);

@@ -81,8 +81,11 @@ export const SETTINGS = Object.freeze({
   PAPERDOLL_CONFIGURED: "paperdollConfigured", // internal: slot layout pushed once; never clobber GM edits
   DEFAULT_HAND_BUDGET: "defaultHandBudget",
   // Optional-rule overlays (RAW, off unless core-default).
+  // NOTE: there is deliberately no masterwork overlay — RR p. 159 masterwork is
+  // fully expressible in fields core already has (+1 hit = item.system.bonus,
+  // +1 damage = a "1d6+1" damage string, +1 AC = aac.value, −1 stone = weight6),
+  // so it needs data (see the equipment-samples pack), not automation.
   OVERLAY_SHIELD_VARIANTS: "overlayShieldVariants",
-  OVERLAY_MASTERWORK: "overlayMasterwork",
   OVERLAY_MANEUVERS: "overlayManeuvers",
   OVERLAY_ITEM_LOSS: "overlayItemLoss",
   OVERLAY_MOUNTED: "overlayMounted",
