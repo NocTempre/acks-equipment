@@ -1,0 +1,20 @@
+{
+  "_id": "acksEqContainer0",
+  "_key": "!macros!acksEqContainer0",
+  "name": "Containers",
+  "type": "script",
+  "img": "icons/containers/bags/pack-leather-brown.webp",
+  "scope": "global",
+  "command": "// Popout container view: nested inventory with a RAW weight roll-up.\n// Contents stay real items flagged containedIn, so core's encumbrance already\n// counts them once (RR p. 161); the harness and bowquiver corrections are\n// applied by the module's encumbrance wrapper.\nconst MOD = \"acks-equipment\";\nconst api = game.modules.get(MOD)?.api ?? globalThis.acksEquipment;\nif (!api) { ui.notifications.error(\"ACKS Equipment is not active.\"); return; }\nconst actor = canvas.tokens.controlled[0]?.actor ?? game.user.character;\nif (!actor) { ui.notifications.warn(\"Select a token or assign a character.\"); return; }\n\nconst report = api.containerReport(actor);\nif (!report.length) {\n  ui.notifications.warn(\"No containers on this character. Run the Annotate macro to flag backpacks, sacks, the adventurer's harness, and bowquivers from core's equipment pack.\");\n  return;\n}\nconst st = (w6) => (w6 / 6).toFixed(2).replace(/\\.00$/, \"\");\nconst rows = report.map((c) => {\n  const contents = c.contents.length\n    ? c.contents.map((i) => `<li>${i.name} <span style=\"opacity:.7\">(${st(i.system.weight6 ?? 0)} st)</span></li>`).join(\"\")\n    : \"<li><em>empty</em></li>\";\n  const cap = c.capacityStone ? `${st(c.load6)} / ${c.capacityStone} st` : `${st(c.load6)} st`;\n  return `<fieldset style=\"margin-bottom:.5rem\">\n    <legend>${c.item.name} — <strong style=\"color:${c.over ? \"var(--color-level-error,#b60205)\" : \"inherit\"}\">${cap}</strong>${c.over ? \" (over capacity!)\" : \"\"}</legend>\n    <ul style=\"margin:.25rem 0 0 1rem\">${contents}</ul>\n  </fieldset>`;\n}).join(\"\");\nconst loose = actor.items.filter((i) => [\"item\", \"weapon\", \"armor\"].includes(i.type) && !i.getFlag(MOD, \"containedIn\") && !api.isContainer(i));\nconst delta6 = api.encumbranceDelta6(actor);\nconst note = delta6\n  ? `<p><em>RAW corrections applied: ${st(Math.abs(delta6))} st ${delta6 < 0 ? \"ignored\" : \"added\"} (adventurer's harness / bowquiver).</em></p>`\n  : \"\";\nconst content = `<div class=\"acks-equipment-loadout\">\n  ${rows}\n  <p><b>Carried loose:</b> ${loose.length} item(s) · <b>Total encumbrance:</b> ${actor.system.encumbrance?.value ?? \"?\"} / ${actor.system.encumbrance?.max ?? \"?\"} st</p>\n  ${note}\n  <p style=\"opacity:.7;font-size:.9em\">Put an item in a container by setting its <code>flags.${MOD}.containedIn</code> to the container's id; clear it to take the item out.</p>\n</div>`;\nnew foundry.applications.api.DialogV2({\n  window: { title: `Containers — ${actor.name}` },\n  content,\n  buttons: [{ action: \"ok\", label: \"Close\", default: true }],\n  position: { width: 460 },\n}).render(true);",
+  "folder": null,
+  "flags": {},
+  "ownership": {
+    "default": 0
+  },
+  "sort": 0,
+  "_stats": {
+    "coreVersion": "14",
+    "createdTime": 1784101908835,
+    "modifiedTime": 1784101908835
+  }
+}

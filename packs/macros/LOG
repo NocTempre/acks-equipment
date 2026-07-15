@@ -1,5 +1,5 @@
-2026/07/15-15:43:25.266 568c Delete type=3 #1
-2026/07/15-15:43:25.266 5874 Level-0 table #5: started
-2026/07/15-15:43:25.275 5874 Level-0 table #5: 4378 bytes OK
-2026/07/15-15:43:25.275 5874 Delete type=0 #3
-2026/07/15-15:43:25.275 5874 Manual compaction at level-0 from '!macros!acksEqAnnotate00' @ 72057594037927935 : 1 .. '!macros!acksEqInspect000' @ 0 : 0; will stop at (end)
+2026/07/15-16:27:56.183 2340 Delete type=3 #1
+2026/07/15-16:27:56.187 44a4 Level-0 table #5: started
+2026/07/15-16:27:56.187 44a4 Level-0 table #5: 6071 bytes OK
+2026/07/15-16:27:56.187 44a4 Delete type=0 #3
+2026/07/15-16:27:56.187 44a4 Manual compaction at level-0 from '!macros!acksEqAnnotate00' @ 72057594037927935 : 1 .. '!macros!acksEqInspect000' @ 0 : 0; will stop at (end)

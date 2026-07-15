@@ -152,6 +152,34 @@ export const MASTERWORK = Object.freeze({
   armorAC: { cost: 650, ac: 1 },
 });
 
+/**
+ * RAW carrying devices (RR pp. 142–145). Core's acks-adventuring-equipment pack
+ * already ships these items, so we ANNOTATE them in place (see the Annotate
+ * macro) rather than duplicating them. capacity is in stone.
+ */
+export const CONTAINER_PROFILES = Object.freeze({
+  backpack: { capacity: 4 },
+  rucksack: { capacity: 2 },
+  sacklarge: { capacity: 6 },
+  sacksmall: { capacity: 2 },
+  saddlebag: { capacity: 3 },
+  pouchpurse: { capacity: 0.5 },
+  chestironbound: { capacity: 20 },
+  barrel: { capacity: 15 },
+  bowquiver: { capacity: 1, bowquiver: true },
+  adventurersharness: { harness: true },
+});
+
+/** Resolve a container profile from an item name, or null. */
+export function containerProfileFor(name) {
+  const key = normalizeName(name);
+  if (CONTAINER_PROFILES[key]) return CONTAINER_PROFILES[key];
+  for (const [k, v] of Object.entries(CONTAINER_PROFILES)) {
+    if (key.startsWith(k) || key.includes(k)) return v;
+  }
+  return null;
+}
+
 /** Normalise an item name to a lookup key. */
 export function normalizeName(name) {
   return String(name ?? "").toLowerCase().replace(/[^a-z0-9]+/g, "");

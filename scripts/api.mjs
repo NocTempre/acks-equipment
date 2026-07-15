@@ -13,20 +13,38 @@ import { refreshLoadout } from "./enforce.mjs";
 import { collectEffectModifiers, sumEffectModifiers, collectStringFlags, hasEffectFlag } from "./effects.mjs";
 import * as CONFIG_DATA from "./config.mjs";
 
-/** Stamp module weapon-profile flags onto a core item from its RAW profile. */
+/**
+ * Stamp module profile flags onto a core item from its RAW profile.
+ * Handles weapons (size/qualities) and carrying devices (container capacity,
+ * harness, bowquiver) — core already ships both, so we annotate in place rather
+ * than duplicate them into our own packs.
+ * @returns {string|null} the profile key applied, or null if unrecognised
+ */
 export async function annotateItem(item) {
-  if (item?.type !== "weapon") return null;
-  const key = weaponKey(item);
-  if (!key) return null;
-  const base = CONFIG_DATA.WEAPONS[key];
-  const updates = {
-    [`flags.${MODULE_ID}.${ITEM_FLAGS.SIZE}`]: base.size,
-    [`flags.${MODULE_ID}.${ITEM_FLAGS.DAMAGE_TYPE}`]: base.type || "",
-    [`flags.${MODULE_ID}.${ITEM_FLAGS.HANDY}`]: !!base.handy,
-    [`flags.${MODULE_ID}.${ITEM_FLAGS.THROWN}`]: !!base.thrown,
-  };
-  await item.update(updates);
-  return key;
+  if (item?.type === "weapon") {
+    const key = weaponKey(item);
+    if (!key) return null;
+    const base = CONFIG_DATA.WEAPONS[key];
+    await item.update({
+      [`flags.${MODULE_ID}.${ITEM_FLAGS.SIZE}`]: base.size,
+      [`flags.${MODULE_ID}.${ITEM_FLAGS.DAMAGE_TYPE}`]: base.type || "",
+      [`flags.${MODULE_ID}.${ITEM_FLAGS.HANDY}`]: !!base.handy,
+      [`flags.${MODULE_ID}.${ITEM_FLAGS.THROWN}`]: !!base.thrown,
+    });
+    return key;
+  }
+  if (item?.type === "item") {
+    const profile = CONFIG_DATA.containerProfileFor(item.name);
+    if (!profile) return null;
+    const updates = {};
+    if (profile.capacity) updates[`flags.${MODULE_ID}.${ITEM_FLAGS.CONTAINER}`] = { capacity: profile.capacity };
+    if (profile.harness) updates[`flags.${MODULE_ID}.${ITEM_FLAGS.HARNESS}`] = true;
+    if (profile.bowquiver) updates[`flags.${MODULE_ID}.${ITEM_FLAGS.BOWQUIVER}`] = true;
+    if (!Object.keys(updates).length) return null;
+    await item.update(updates);
+    return "container";
+  }
+  return null;
 }
 
 export function buildApi() {
@@ -51,6 +69,13 @@ export function buildApi() {
     isArmorProficient,
     thiefSkillsGated,
     isArmorGatedSkill,
+    // Containers
+    containerReport,
+    contentsOf,
+    contentsWeight6,
+    overCapacity,
+    isContainer,
+    encumbranceDelta6,
     // Effect contract
     collectEffectModifiers,
     sumEffectModifiers,

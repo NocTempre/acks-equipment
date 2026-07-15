@@ -379,4 +379,14 @@ const loopA = gear("Loop A", 1, { id: "la", flags: { container: {}, containedIn:
 const loopB = gear("Loop B", 1, { id: "lb", flags: { container: {}, containedIn: "la" } });
 check("self-referencing containers do not hang", contentsWeight6(withItems([loopA, loopB]), "la") >= 0);
 
+
+// Container profiles must match core's REAL item names in acks-adventuring-
+// equipment (we annotate those in place rather than duplicating them).
+const { containerProfileFor } = await import(new URL("config.mjs", S));
+check("backpack profile from core's name '(holds 4 stone)'", containerProfileFor("Backpack (holds 4 stone)").capacity === 4);
+check("rucksack 2 st / large sack 6 st / saddlebag 3 st", containerProfileFor("Rucksack (holds 2 stone)").capacity === 2 && containerProfileFor("Sack, Large (holds 6 stone)").capacity === 6 && containerProfileFor("Saddlebag (holds 3 stone)").capacity === 3);
+check("adventurer's harness profile flags the harness rule", containerProfileFor("Adventurer's Harness").harness === true);
+check("bowquiver profile flags the 2-item rule", containerProfileFor("Bowquiver").bowquiver === true);
+check("a sword is not a container", containerProfileFor("Sword") === null);
+
 console.log(`test-logic: all ${pass} checks passed`);

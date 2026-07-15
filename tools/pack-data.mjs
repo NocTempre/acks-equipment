@@ -43,6 +43,54 @@ const content = \`<div class="acks-equipment-loadout">
 new foundry.applications.api.DialogV2({ window: { title: \`Loadout — \${actor.name}\` }, content, buttons: [{ action: "ok", label: "Close", default: true }] }).render(true);`,
   },
   {
+    _id: "acksEqContainer0",
+    name: "Containers",
+    img: "icons/containers/bags/pack-leather-brown.webp",
+    command: `// Popout container view: nested inventory with a RAW weight roll-up.
+// Contents stay real items flagged containedIn, so core's encumbrance already
+// counts them once (RR p. 161); the harness and bowquiver corrections are
+// applied by the module's encumbrance wrapper.
+const MOD = "acks-equipment";
+const api = game.modules.get(MOD)?.api ?? globalThis.acksEquipment;
+if (!api) { ui.notifications.error("ACKS Equipment is not active."); return; }
+const actor = canvas.tokens.controlled[0]?.actor ?? game.user.character;
+if (!actor) { ui.notifications.warn("Select a token or assign a character."); return; }
+
+const report = api.containerReport(actor);
+if (!report.length) {
+  ui.notifications.warn("No containers on this character. Run the Annotate macro to flag backpacks, sacks, the adventurer's harness, and bowquivers from core's equipment pack.");
+  return;
+}
+const st = (w6) => (w6 / 6).toFixed(2).replace(/\\.00$/, "");
+const rows = report.map((c) => {
+  const contents = c.contents.length
+    ? c.contents.map((i) => \`<li>\${i.name} <span style="opacity:.7">(\${st(i.system.weight6 ?? 0)} st)</span></li>\`).join("")
+    : "<li><em>empty</em></li>";
+  const cap = c.capacityStone ? \`\${st(c.load6)} / \${c.capacityStone} st\` : \`\${st(c.load6)} st\`;
+  return \`<fieldset style="margin-bottom:.5rem">
+    <legend>\${c.item.name} — <strong style="color:\${c.over ? "var(--color-level-error,#b60205)" : "inherit"}">\${cap}</strong>\${c.over ? " (over capacity!)" : ""}</legend>
+    <ul style="margin:.25rem 0 0 1rem">\${contents}</ul>
+  </fieldset>\`;
+}).join("");
+const loose = actor.items.filter((i) => ["item", "weapon", "armor"].includes(i.type) && !i.getFlag(MOD, "containedIn") && !api.isContainer(i));
+const delta6 = api.encumbranceDelta6(actor);
+const note = delta6
+  ? \`<p><em>RAW corrections applied: \${st(Math.abs(delta6))} st \${delta6 < 0 ? "ignored" : "added"} (adventurer's harness / bowquiver).</em></p>\`
+  : "";
+const content = \`<div class="acks-equipment-loadout">
+  \${rows}
+  <p><b>Carried loose:</b> \${loose.length} item(s) · <b>Total encumbrance:</b> \${actor.system.encumbrance?.value ?? "?"} / \${actor.system.encumbrance?.max ?? "?"} st</p>
+  \${note}
+  <p style="opacity:.7;font-size:.9em">Put an item in a container by setting its <code>flags.\${MOD}.containedIn</code> to the container's id; clear it to take the item out.</p>
+</div>\`;
+new foundry.applications.api.DialogV2({
+  window: { title: \`Containers — \${actor.name}\` },
+  content,
+  buttons: [{ action: "ok", label: "Close", default: true }],
+  position: { width: 460 },
+}).render(true);`,
+  },
+  {
     _id: "acksEqDrawSheath",
     name: "Draw / Sheathe",
     img: "icons/svg/sword.svg",
