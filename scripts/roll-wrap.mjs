@@ -30,6 +30,7 @@ import { getLoadout } from "./loadout.mjs";
 import { classifyWeapon } from "./profiles.mjs";
 import { isWeaponProficient } from "./proficiency.mjs";
 import { hasEffectFlag } from "./effects.mjs";
+import { encumbranceDelta6 } from "./containers.mjs";
 
 /** Sizes eligible for Weapon Finesse (RR p. 121). */
 const FINESSE_SIZES = [SIZE.TINY, SIZE.SMALL, SIZE.MEDIUM];
@@ -106,8 +107,52 @@ function onRollAttack(wrapped, attData, options = {}) {
   return wrapped(attData, options);
 }
 
+/**
+ * WRAPPER around AcksActor#computeEncumbrance.
+ *
+ * FLAGGED: this wraps a core method that acks-formation depends on (it reads the
+ * resulting system.encumbrance / movementacks for party speed). It is an
+ * ENHANCE, not a replacement — core's own sum runs untouched and we adjust the
+ * total afterwards, so formation keeps reading one consistent number and the two
+ * modules cannot disagree. Only RAW rules a flat sum gets wrong are corrected
+ * (adventurer's harness, bowquiver); with no containers in play the delta is 0
+ * and this is a pass-through.
+ *
+ * Core calls _calculateMovement() at the END of computeEncumbrance, so any
+ * adjustment must recompute movement or speed would reflect the pre-correction
+ * weight.
+ *
+ * HANDOFF: a core `system.encumbrance.mod` field (the way `aac.mod` lets us
+ * correct AC without a patch) would let this wrap be deleted entirely.
+ */
+function onComputeEncumbrance(wrapped, ...args) {
+  const result = wrapped(...args);
+  try {
+    if (this.type !== "character") return result;
+    const delta6 = encumbranceDelta6(this);
+    if (!delta6) return result; // common case: nothing RAW-specific applies
+    const enc = this.system.encumbrance;
+    const value6 = Math.max(0, Number(enc.value6 ?? 0) + delta6);
+    const stones = value6 / 6;
+    const max = Number(enc.max ?? 0) || 1;
+    this.system.encumbrance = {
+      ...enc,
+      value6,
+      value: Math.round(stones),
+      pct: Math.clamp ? Math.clamp((stones / max) * 100, 0, 100) : Math.min(100, Math.max(0, (stones / max) * 100)),
+      encumbered: stones > max,
+    };
+    // Core computed movement from the pre-correction weight — redo it.
+    if (this.system.config?.movementAuto) this._calculateMovement();
+  } catch (err) {
+    console.error(`${MODULE_ID} | encumbrance wrap failed; core's value stands`, err);
+  }
+  return result;
+}
+
 export function registerRollWrap() {
   libWrapper.register(MODULE_ID, "CONFIG.Actor.documentClass.prototype.rollAttack", onRollAttack, "WRAPPER");
-  console.debug(`${MODULE_ID} | attack-roll wrapper registered.`);
+  libWrapper.register(MODULE_ID, "CONFIG.Actor.documentClass.prototype.computeEncumbrance", onComputeEncumbrance, "WRAPPER");
+  console.debug(`${MODULE_ID} | attack-roll and encumbrance wrappers registered.`);
   void CONFIG;
 }

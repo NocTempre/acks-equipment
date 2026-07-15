@@ -320,4 +320,63 @@ check("hooked weapon → disarm −2, target saves −2", (() => { const r = man
 check("hooked does not stack on top of Trickery", maneuverMods(trickDisarm, mSword, "disarm", { hooked: true }).attackPenalty === -2);
 check("unknown maneuver → null", maneuverMods(plainActor, mSword, "nonsense") === null);
 
+
+// --- Phase 7: containers ------------------------------------------------------
+const { encumbranceDelta6, contentsWeight6, overCapacity, containerReport, isContainer } =
+  await import(new URL("containers.mjs", S));
+
+const gear = (name, w6, over = {}) => ({
+  id: over.id ?? name.replace(/\W/g, ""),
+  name,
+  type: over.type ?? "item",
+  system: { weight6: w6, quantity: { value: over.qty ?? 1 }, subtype: over.subtype, equipped: over.equipped ?? false },
+  getFlag: (_m, k) => (over.flags ?? {})[k],
+  effects: [],
+});
+const withItems = (items) => {
+  const a = actor(items);
+  a.items = Object.assign(items.slice(), { filter: (f) => items.filter(f), find: (f) => items.find(f) });
+  return a;
+};
+
+// Contents stay real items, so core's flat sum is ALREADY right for a plain
+// backpack — the correction must be zero, or we'd silently change every actor.
+const pack = gear("Backpack", 1, { id: "bp", flags: { container: { capacity: 4 } } });
+const rope = gear("Rope", 6, { id: "rope", flags: { containedIn: "bp" } });
+const rations = gear("Rations", 6, { id: "rat", flags: { containedIn: "bp" } });
+const cActor = withItems([pack, rope, rations]);
+check("plain backpack -> no encumbrance correction (core's flat sum is RAW)", encumbranceDelta6(cActor) === 0);
+check("backpack rolls up its contents' weight", contentsWeight6(cActor, "bp") === 12);
+check("backpack under capacity (2 st of 4)", !overCapacity(cActor, pack));
+check("container report lists load in stone", containerReport(cActor)[0].loadStone === 2);
+check("isContainer only true for flagged items", isContainer(pack) && !isContainer(rope));
+
+const ingots = gear("Iron Ingots", 30, { id: "ing", flags: { containedIn: "bp" } });
+check("backpack over capacity flagged", overCapacity(withItems([pack, ingots]), pack));
+
+// Adventurer's harness: ignore up to 1 stone of ORDINARY gear (RR p. 142).
+const harness = gear("Adventurer's Harness", 1, { id: "h", equipped: true, flags: { harness: true } });
+const smalls = [gear("Flask A", 1, { id: "f1" }), gear("Flask B", 1, { id: "f2" }), gear("Torch", 1, { id: "f3" })];
+check("harness ignores up to 1 stone (only 3/6 available -> -3)", encumbranceDelta6(withItems([harness, ...smalls])) === -3);
+const manySmalls = Array.from({ length: 10 }, (_, i) => gear(`Item ${i}`, 1, { id: `s${i}` }));
+check("harness caps its relief at exactly 1 stone", encumbranceDelta6(withItems([harness, ...manySmalls])) === -6);
+check("harness cannot secure heavy items", encumbranceDelta6(withItems([harness, gear("Anvil", 12, { id: "an" })])) === 0);
+const plateArm = { id: "pl", name: "Plate", type: "armor", system: { equipped: true, type: "heavy", aac: { value: 6 }, weight6: 36 }, getFlag: () => undefined, effects: [] };
+check("harness gives nothing over heavy armour", encumbranceDelta6(withItems([harness, plateArm, ...smalls])) === 0);
+
+// Bowquiver: a loaded assembly counts as 2 items, not quiver + bow + arrows.
+const quiver = gear("Bowquiver", 1, { id: "bq", flags: { bowquiver: true, container: { capacity: 1 } } });
+const cbow = gear("Composite Bow", 6, { id: "cb", type: "weapon", flags: { containedIn: "bq" } });
+const arrows = gear("Quiver, 20 Arrows", 1, { id: "ar", flags: { containedIn: "bq" } });
+check("loaded bowquiver -> RAW 2 items, not 8 (delta -6)", encumbranceDelta6(withItems([quiver, cbow, arrows])) === -6);
+check("empty bowquiver -> RAW 1 item (delta 0)", encumbranceDelta6(withItems([quiver])) === 0);
+
+// Nesting rolls up; a self-referencing pair must not hang the sheet.
+const sack = gear("Small Sack", 1, { id: "sk", flags: { container: { capacity: 2 }, containedIn: "bp" } });
+const inSack = gear("Gems", 3, { id: "gm", flags: { containedIn: "sk" } });
+check("nested container rolls up into its parent", contentsWeight6(withItems([pack, sack, inSack]), "bp") === 4);
+const loopA = gear("Loop A", 1, { id: "la", flags: { container: {}, containedIn: "lb" } });
+const loopB = gear("Loop B", 1, { id: "lb", flags: { container: {}, containedIn: "la" } });
+check("self-referencing containers do not hang", contentsWeight6(withItems([loopA, loopB]), "la") >= 0);
+
 console.log(`test-logic: all ${pass} checks passed`);

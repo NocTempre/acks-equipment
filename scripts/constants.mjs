@@ -61,6 +61,10 @@ export const ITEM_FLAGS = Object.freeze({
   STRAP: "strap", // JJ overlay: "hand" | "back" | "front"
   MASTERWORK: "masterwork", // {toHit,toDamage,acWeight,ac}
   HELMET: "helmet", // "light" | "heavy"
+  CONTAINER: "container", // {capacity: <stone>} — marks an item as a container
+  CONTAINED_IN: "containedIn", // id of the container item this item is stored in
+  HARNESS: "harness", // adventurer's harness: ignore 1 stone of ordinary gear
+  BOWQUIVER: "bowquiver", // bowquiver: assembly counts as 2 items when loaded
   WORN_HAND: "hand", // set by paper-doll normalization: "main" | "off" | "mainOff"
 });
 
