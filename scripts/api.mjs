@@ -8,6 +8,7 @@
 import { MODULE_ID, HOOKS, EFFECT_DOMAINS, ITEM_FLAGS } from "./constants.mjs";
 import { getLoadout, VIOLATION, trainedStyles, specializedStyles, handBudget } from "./loadout.mjs";
 import { classifyWeapon, handCost, focusGroup, weaponKey } from "./profiles.mjs";
+import { weaponProficiency, isWeaponProficient, armorMax, isArmorProficient, thiefSkillsGated, isArmorGatedSkill } from "./proficiency.mjs";
 import { refreshLoadout } from "./enforce.mjs";
 import { collectEffectModifiers, sumEffectModifiers, collectStringFlags, hasEffectFlag } from "./effects.mjs";
 import * as CONFIG_DATA from "./config.mjs";
@@ -43,6 +44,13 @@ export function buildApi() {
     weaponKey,
     annotateItem,
     refreshLoadout,
+    // Proficiency
+    weaponProficiency,
+    isWeaponProficient,
+    armorMax,
+    isArmorProficient,
+    thiefSkillsGated,
+    isArmorGatedSkill,
     // Effect contract
     collectEffectModifiers,
     sumEffectModifiers,

@@ -7,7 +7,7 @@
  * ready — system guard, socketlib, paper-doll wiring (Phase 4), initial
  *         loadout sync, equip-enforcement hooks.
  */
-import { MODULE_ID, SETTINGS } from "./constants.mjs";
+import { MODULE_ID, SETTINGS, LOADOUT_EFFECT_FLAG } from "./constants.mjs";
 import { registerSettings } from "./settings.mjs";
 import { buildApi } from "./api.mjs";
 import { onPreUpdateItem, onUpdateItem, refreshLoadout, primaryResponder } from "./enforce.mjs";
@@ -76,20 +76,42 @@ Hooks.on("updateItem", (item, changes) => {
   onUpdateItem(item, changes).catch((err) => console.error(`${MODULE_ID} | updateItem enforcement failed`, err));
 });
 
-/* An item created already-equipped (drag-drop) or deleted while equipped also
- * changes the loadout. */
-Hooks.on("createItem", (item) => {
+/* Items that affect the loadout: worn gear (weapon/armor) and proficiencies
+ * (ability items carrying flags.acks-equipment.* markers). */
+const LOADOUT_ITEM_TYPES = ["weapon", "armor", "ability"];
+function onLoadoutItemChange(item) {
   const actor = item?.parent;
-  if (actor?.documentName === "Actor" && primaryResponder(actor) && ["weapon", "armor"].includes(item.type) && item.system?.equipped) {
-    refreshLoadout(actor).catch((err) => console.error(`${MODULE_ID} | createItem loadout sync failed`, err));
+  if (actor?.documentName === "Actor" && primaryResponder(actor) && LOADOUT_ITEM_TYPES.includes(item.type)) {
+    refreshLoadout(actor).catch((err) => console.error(`${MODULE_ID} | item loadout sync failed`, err));
+  }
+}
+Hooks.on("createItem", onLoadoutItemChange);
+Hooks.on("deleteItem", onLoadoutItemChange);
+
+/* Proficiency/style config lives in actor flags — rebuild when it changes. */
+Hooks.on("updateActor", (actor, changes) => {
+  if (!primaryResponder(actor)) return;
+  if (foundry.utils.hasProperty(changes, `flags.${MODULE_ID}`)) {
+    refreshLoadout(actor).catch((err) => console.error(`${MODULE_ID} | actor-flag loadout sync failed`, err));
   }
 });
 
-Hooks.on("deleteItem", (item) => {
-  const actor = item?.parent;
-  if (actor?.documentName === "Actor" && primaryResponder(actor) && ["weapon", "armor"].includes(item.type)) {
-    refreshLoadout(actor).catch((err) => console.error(`${MODULE_ID} | deleteItem loadout sync failed`, err));
-  }
-});
+/* Toggling/editing a proficiency's Active Effect changes the loadout too.
+ * Skip our OWN managed loadout effect to avoid a rebuild loop. */
+function effectActor(effect) {
+  const p = effect?.parent;
+  if (p?.documentName === "Actor") return p;
+  if (p?.documentName === "Item" && p.parent?.documentName === "Actor") return p.parent;
+  return null;
+}
+for (const hook of ["createActiveEffect", "updateActiveEffect", "deleteActiveEffect"]) {
+  Hooks.on(hook, (effect) => {
+    if (effect?.getFlag?.(MODULE_ID, LOADOUT_EFFECT_FLAG)) return; // our managed effect
+    const actor = effectActor(effect);
+    if (actor && primaryResponder(actor)) {
+      refreshLoadout(actor).catch((err) => console.error(`${MODULE_ID} | effect loadout sync failed`, err));
+    }
+  });
+}
 
 export { isPrimaryGM };

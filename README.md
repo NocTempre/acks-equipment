@@ -19,9 +19,11 @@ enforces the RAW.
 - **Fighting styles** — infers Single / Dual / Two-Handed / Weapon & Shield /
   Missile from the loadout; applies Fighting Style Specialization bonuses via the
   loadout Active Effect (AC, initiative, attack, damage) into core's `system.*.mod`.
-- **Proficiency & skill integration** *(Phase 2)* — weapon/armour/fighting-style
-  proficiency and thief-skill armour gates, driven by effect flags on `ability`
-  items.
+- **Proficiency & skill integration** — weapon/armour/fighting-style proficiency
+  and thief-skill armour gates, driven by effect flags on `ability` items. Ships
+  42 combat/equipment proficiencies (Fighting Style Specialization, Weapon Finesse,
+  Weapon Focus, Martial/Armour Training, Combat Trickery, slayers, and more) plus
+  a Configure-Proficiencies macro.
 - **Combat-roll automation** *(Phase 3)* — Weapon Finesse, dual-wield, two-handed
   damage, Weapon Focus, Precise Shooting, non-proficiency penalty, via libWrapper.
 - **Draw / sheath / surprise** *(Phase 3)* — RAW action economy with the
@@ -46,5 +48,6 @@ npm run validate     # check pack sources
 npm run build:packs  # compile compendia to LevelDB
 ```
 
-Status: **Phase 1 complete** (scaffold, loadout model, equip-limit enforcement,
-loadout effect, inspector + annotate macros). Phases 2–5 in progress.
+Status: **Phases 1–2 complete** (scaffold, loadout model, equip-limit enforcement,
+loadout effect, proficiency/skill enforcement, 42-item proficiencies compendium,
+inspector + annotate + configure macros). Phases 3–5 in progress.

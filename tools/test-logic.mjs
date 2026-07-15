@@ -22,9 +22,11 @@ globalThis.foundry = {
     getProperty: (o, p) => p.split(".").reduce((a, k) => (a == null ? a : a[k]), o),
   },
 };
-// v14 string-typed change modes; make the deprecated getter THROW so any access
-// to CONST.ACTIVE_EFFECT_MODES fails the test.
-globalThis.CONST = { ACTIVE_EFFECT_CHANGE_TYPES: { ADD: "add", OVERRIDE: "override" } };
+// v14: change.mode is a lowercase string key; the enum numbers are default
+// priorities. Make the deprecated numeric getter THROW so any access fails.
+globalThis.CONST = {
+  ACTIVE_EFFECT_CHANGE_TYPES: { custom: 0, multiply: 10, add: 20, subtract: 20, downgrade: 30, upgrade: 40, override: 50 },
+};
 Object.defineProperty(globalThis.CONST, "ACTIVE_EFFECT_MODES", {
   get() { throw new Error("accessed deprecated CONST.ACTIVE_EFFECT_MODES"); },
 });
@@ -33,6 +35,8 @@ const S = new URL("../scripts/", import.meta.url);
 const { classifyWeapon, handCost } = await import(new URL("profiles.mjs", S));
 const { getLoadout, VIOLATION } = await import(new URL("loadout.mjs", S));
 const { buildLoadoutChanges } = await import(new URL("effects.mjs", S));
+const { weaponProficiency, isWeaponProficient, armorMax, isArmorProficient, thiefSkillsGated, swashbucklingAC } = await import(new URL("proficiency.mjs", S));
+const { buildProficiencies } = await import(new URL("../tools/pack-data.mjs", import.meta.url));
 
 const weapon = (name, over = {}) => ({
   id: over.id ?? name.replace(/\W/g, ""),
@@ -54,11 +58,13 @@ const actor = (items, over = {}) => ({
   id: "a1",
   type: "character",
   items,
+  system: over.system ?? {},
   effects: over.effects ?? [],
   appliedEffects: over.effects ?? [],
   isOwner: true,
   getFlag: (_m, k) => (over.flags ?? {})[k],
 });
+const marker = (domain, value) => ({ id: "fx" + domain, name: domain, disabled: false, changes: [{ key: `flags.acks-equipment.${domain}`, value: String(value) }], flags: { "acks-equipment": {} } });
 
 let pass = 0;
 const check = (label, cond) => { assert.ok(cond, label); pass++; };
@@ -98,5 +104,47 @@ check("spec actor → weaponShield active", specLo.activeStyle === "weaponShield
 const changes = buildLoadoutChanges(specActor, specLo);
 const ac = changes.find((c) => c.key === "system.aac.mod");
 check("W&S spec → +1 aac.mod, string mode 'add'", ac && Number(ac.value) === 1 && ac.mode === "add");
+
+// --- Phase 2: proficiency resolution -----------------------------------------
+const swordP = classifyWeapon(weapon("Sword", { melee: true }));
+const axeP = classifyWeapon(weapon("Battle Axe", { melee: true }));
+check("default weapon proficiency = all", isWeaponProficient(actor([]), swordP));
+const restricted = actor([], { flags: { weaponProficiency: "swordDagger" } });
+check("restricted: sword proficient, axe not", isWeaponProficient(restricted, swordP) && !isWeaponProficient(restricted, axeP));
+const martial = actor([], { flags: { weaponProficiency: "swordDagger" }, effects: [marker("martialWeapons", "axe")] });
+check("Martial Training adds axe category", isWeaponProficient(martial, axeP));
+
+check("default armorMax = heavy", armorMax(actor([])) === "heavy");
+const lightOnly = actor([], { flags: { armorMax: "light" } });
+check("armorMax light: leather ok, plate not", isArmorProficient(lightOnly, armor("Leather", "light")) && !isArmorProficient(lightOnly, armor("Plate", "heavy")));
+const trained = actor([], { flags: { armorMax: "light" }, effects: [marker("armorTraining", "1")] });
+check("Armour Training light→medium", armorMax(trained) === "medium" && isArmorProficient(trained, armor("Chain", "medium")));
+
+check("thief gate: heavy armour blocks", thiefSkillsGated({ armor: armor("Plate", "heavy") }));
+check("thief gate: leather + no shield ok", !thiefSkillsGated({ armor: armor("Leather", "light"), shield: null }));
+check("thief gate: leather + shield blocks", thiefSkillsGated({ armor: armor("Leather", "light"), shield: armor("Shield", "shield") }));
+
+const swash = actor([], { flags: {}, system: { details: { level: 1 }, encumbrance: { value: 3 } }, effects: [marker("swashbuckling", "1")] });
+check("Swashbuckling L1 unarmoured → +1 AC", swashbucklingAC(swash, { armor: null }) === 1);
+const swash7 = actor([], { system: { details: { level: 7 }, encumbrance: { value: 3 } }, effects: [marker("swashbuckling", "1")] });
+check("Swashbuckling L7 → +2 AC", swashbucklingAC(swash7, { armor: null }) === 2);
+check("Swashbuckling in heavy armour → 0", swashbucklingAC(swash, { armor: armor("Plate", "heavy") }) === 0);
+check("Swashbuckling without proficiency → 0", swashbucklingAC(actor([]), { armor: null }) === 0);
+
+// non-proficient weapon surfaces an advisory (never blocks)
+const npLoadout = getLoadout(actor([weapon("Battle Axe", { melee: true, id: "ax" })], { flags: { weaponProficiency: "swordDagger" } }));
+check("non-proficient weapon → advisory, still legal", npLoadout.violations.some((v) => v.type === VIOLATION.WEAPON_NOT_PROFICIENT && v.advisory) && npLoadout.legal);
+
+// --- Phase 2: proficiencies compendium ---------------------------------------
+const profs = buildProficiencies();
+const ID = /^[A-Za-z0-9]{16}$/;
+check("compendium builds 42 proficiencies", profs.length === 42);
+check("all proficiency ids 16-char alphanumeric + matching _key", profs.every((d) => ID.test(d._id) && d._key === `!items!${d._id}`));
+const ids = new Set(profs.map((d) => d._id));
+check("proficiency ids unique", ids.size === profs.length);
+const changeKeys = profs.flatMap((d) => (d.effects[0]?.changes ?? []).map((c) => c.key));
+check("effect change keys are flags.acks-equipment.* with override mode", changeKeys.length > 0 && changeKeys.every((k) => k.startsWith("flags.acks-equipment.")) && profs.every((d) => (d.effects[0]?.changes ?? []).every((c) => c.mode === "override")));
+const wsSpec = profs.find((d) => d.name.includes("Weapon & Shield"));
+check("W&S spec item carries styleProficient=weaponShield:spec + freeSwap", wsSpec.effects[0].changes.some((c) => c.key.endsWith("styleProficient") && c.value === "weaponShield:spec") && wsSpec.effects[0].changes.some((c) => c.key.endsWith("freeSwap")));
 
 console.log(`test-logic: all ${pass} checks passed`);

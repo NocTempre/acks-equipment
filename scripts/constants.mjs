@@ -41,9 +41,12 @@ export const EFFECT_DOMAINS = Object.freeze({
   BLIND_FIGHTING: "blindFighting",
   MOUNTED_COMBAT: "mountedCombat",
   RIDING: "riding",
+  RUNNING: "running", // +30' base speed (≤ medium armour, ≤7 st) — consumed by movement modules (formation), not this one
+  BERSERKERGANG: "berserkergang",
   FREE_SWAP: "freeSwap", // Fighting Style Specialization free draw/sheath/ready
   NO_SHIELD_BENEFIT: "noShieldBenefit", // class lacks Weapon & Shield style
   STYLE_PROFICIENT: "styleProficient", // CSV of fighting styles the actor is trained in
+  SWASHBUCKLING: "swashbuckling", // conditional AC: <= light armour & <= 5 st (RR p. 117)
 });
 
 /** Per-item override / annotation flags (on weapon & armor items). */
@@ -65,6 +68,9 @@ export const ITEM_FLAGS = Object.freeze({
 export const ACTOR_FLAGS = Object.freeze({
   ACTIVE_STYLE: "activeStyle", // player's chosen style when two apply this round
   LAST_LOADOUT: "lastLoadoutHash", // dedupe guard for effect rebuilds
+  STYLES: "styles", // CSV/array of fighting styles the actor is trained in (+ single,missile)
+  WEAPON_PROF: "weaponProficiency", // "all" | CSV of categories/weapon keys the actor is proficient with
+  ARMOR_MAX: "armorMax", // highest armour category the actor is proficient in (default heavy)
 });
 
 /** World/client settings keys. */

@@ -10,13 +10,18 @@ import { STYLE } from "./config.mjs";
 import { classifyWeapon, handCost, inferStyle, canOneHand } from "./profiles.mjs";
 import { collectStringFlags, sumEffectModifiers } from "./effects.mjs";
 import { EFFECT_DOMAINS } from "./constants.mjs";
+import { weaponProficiency, isWeaponProficient, armorMax, isArmorProficient, thiefSkillsGated, swashbucklingAC } from "./proficiency.mjs";
 
 /** Violation type keys (for i18n + auto-resolve). */
 export const VIOLATION = Object.freeze({
   HAND_OVERFLOW: "handOverflow",
   MULTIPLE_ARMOR: "multipleArmor",
   TOO_MANY_SHIELDS: "tooManyShields",
-  SHIELD_NO_STYLE: "shieldNoStyle", // class lacks Weapon & Shield style → no benefit (advisory, not blocking)
+  SHIELD_NO_STYLE: "shieldNoStyle", // class lacks Weapon & Shield style → no benefit (advisory)
+  WEAPON_NOT_PROFICIENT: "weaponNotProficient", // −1 attack, no style benefit (advisory; roll-time penalty in Phase 3)
+  ARMOR_NOT_PROFICIENT: "armorNotProficient", // worn armour above class proficiency (advisory)
+  STYLE_NOT_PROFICIENT: "styleNotProficient", // using an untrained fighting style (advisory)
+  THIEF_SKILL_GATED: "thiefSkillGated", // Backstab/Hide/Pickpocket/Sneak blocked by armour/shield (advisory)
 });
 
 /** Base hand budget for an actor (2 + Four-Arms/anatomy effects + setting). */
@@ -79,6 +84,7 @@ export function getLoadout(actor, opts = {}) {
   const suits = equippedArmor.filter((a) => !isShield(a) && !isHelmet(a));
 
   // Classify weapons and assign hand costs (minimum, i.e. medium counts as 1).
+  const wprof = weaponProficiency(actor);
   const weapons = equippedWeapons.map((item) => {
     const profile = classifyWeapon(item);
     const wornHand = item.getFlag?.(MODULE_ID, ITEM_FLAGS.WORN_HAND) ?? null;
@@ -90,6 +96,7 @@ export function getLoadout(actor, opts = {}) {
       wieldTwoHanded: false,
       melee: profile.melee,
       missile: profile.missile,
+      proficient: isWeaponProficient(actor, profile, wprof),
     };
   });
 
@@ -139,13 +146,34 @@ export function getLoadout(actor, opts = {}) {
     violations.push({ type: VIOLATION.SHIELD_NO_STYLE, items: shields, advisory: true });
   }
 
+  // --- Proficiency advisories (never blocking; roll penalties land in Phase 3) ---
+  const armor = suits[suits.length - 1] ?? null;
+  const amax = armorMax(actor);
+  const armorProficient = armor ? isArmorProficient(actor, armor, amax) : true;
+  const nonProfWeapons = weapons.filter((w) => !w.proficient);
+  if (nonProfWeapons.length) {
+    violations.push({ type: VIOLATION.WEAPON_NOT_PROFICIENT, items: nonProfWeapons.map((w) => w.item), advisory: true });
+  }
+  if (armor && !armorProficient) {
+    violations.push({ type: VIOLATION.ARMOR_NOT_PROFICIENT, items: [armor], advisory: true, detail: { max: amax } });
+  }
+  if (weapons.length && !styleProficient) {
+    violations.push({ type: VIOLATION.STYLE_NOT_PROFICIENT, items: weapons.map((w) => w.item), advisory: true, detail: { style: activeStyle } });
+  }
+  const thiefGated = thiefSkillsGated({ armor, shield: shields[0] ?? null });
+  if (thiefGated) {
+    violations.push({ type: VIOLATION.THIEF_SKILL_GATED, items: [armor, shields[0]].filter(Boolean), advisory: true });
+  }
+
   return {
     actorId: actor.id,
     handBudget: budget,
     handsUsed,
     handsFree: Math.max(0, budget - handsUsed),
     weapons,
-    armor: suits[suits.length - 1] ?? null,
+    armor,
+    armorProficient,
+    armorMax: amax,
     extraArmor: suits.slice(0, -1),
     shields,
     shield: shields[0] ?? null,
@@ -155,6 +183,8 @@ export function getLoadout(actor, opts = {}) {
     trainedStyles: trained,
     specStyles: spec,
     styleProficient,
+    thiefSkillsGated: thiefGated,
+    condAC: swashbucklingAC(actor, { armor }),
     violations,
     legal: violations.every((v) => v.advisory),
   };

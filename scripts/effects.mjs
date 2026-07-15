@@ -1,4 +1,4 @@
-/* global game, foundry, CONST */
+/* global game, foundry */
 /**
  * Data-driven modifier discovery + the module-managed "Equipment Loadout"
  * Active Effect.
@@ -108,10 +108,11 @@ export function collectStringFlags(actor, domain) {
  * @param {import("./loadout.mjs").Loadout} loadout
  */
 export function buildLoadoutChanges(actor, loadout) {
-  // v14 uses string-typed change modes (CONST.ACTIVE_EFFECT_CHANGE_TYPES);
-  // CONST.ACTIVE_EFFECT_MODES is deprecated and accessing it logs a warning.
-  // Fall back to the numeric ADD value (2) only if the new enum is absent.
-  const ADD = CONST.ACTIVE_EFFECT_CHANGE_TYPES?.ADD ?? 2;
+  // v14 change modes are lowercase string keys of CONST.ACTIVE_EFFECT_CHANGE_TYPES
+  // (the numbers in that enum are default priorities, not mode values). The
+  // module requires Foundry v14+, so the string literal is canonical; using the
+  // deprecated numeric CONST.ACTIVE_EFFECT_MODES would log a compatibility warning.
+  const ADD = "add";
   const changes = [];
   const add = (key, value) => {
     if (value) changes.push({ key, mode: ADD, value: String(value), priority: 20 });
@@ -136,6 +137,12 @@ export function buildLoadoutChanges(actor, loadout) {
 
   // Flat always-on init (Combat Reflexes) and AC domains that are NOT style-gated.
   add("system.initiative.mod", sumEffectModifiers(actor, EFFECT_DOMAINS.STYLE_INIT));
+  add("system.thac0.mod.melee", sumEffectModifiers(actor, EFFECT_DOMAINS.STYLE_ATTACK_MELEE));
+  add("system.thac0.mod.missile", sumEffectModifiers(actor, EFFECT_DOMAINS.STYLE_ATTACK_MISSILE));
+  add("system.aac.mod", sumEffectModifiers(actor, EFFECT_DOMAINS.STYLE_AC));
+
+  // Conditional AC (Swashbuckling / Blade-Dancing) computed in the loadout.
+  add("system.aac.mod", loadout.condAC ?? 0);
 
   return changes;
 }

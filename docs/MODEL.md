@@ -51,7 +51,13 @@ Numeric domains sum; CSV domains collect; boolean-ish domains test presence. Add
 | `slayer` | CSV `group:bonus` | Goblin-/Vermin-Slaying (roll-time, situational) |
 | `martialWeapons` | CSV | weapon categories added to proficiency |
 | `armorTraining` | numeric | armour categories added above class |
-| `finesse` `preciseShooting` `sniping` `ambushing` `skirmishing` `unarmedFighting` `blindFighting` `mountedCombat` `riding` `freeSwap` | boolean | proficiency presence tests |
+| `swashbuckling` | boolean | conditional AC (≤ light armour, ≤5 st, by level) → loadout AE |
+| `running` | boolean | +30' speed marker — read by movement modules (formation), not written here |
+| `finesse` `preciseShooting` `sniping` `ambushing` `skirmishing` `unarmedFighting` `blindFighting` `mountedCombat` `riding` `berserkergang` `freeSwap` | boolean | proficiency presence tests |
+
+Per-actor proficiency profile (not effects): `flags.acks-equipment.styles` (trained
+fighting styles), `.weaponProficiency` (`"all"` or CSV of categories/weapon keys),
+`.armorMax` (heaviest armour category). Set via the Configure Proficiencies macro.
 
 ## 4. Public API & hooks
 
