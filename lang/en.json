@@ -1,0 +1,73 @@
+{
+  "ACKS-EQUIPMENT": {
+    "settings": {
+      "enforceMode": {
+        "name": "Equip-limit enforcement",
+        "hint": "How to handle RAW-illegal equip attempts (too many hands, a second armour suit, a shield with no free hand).",
+        "resolve": "Warn and auto-resolve (recommended)",
+        "veto": "Block the equip",
+        "advisory": "Advisory only (never block)"
+      },
+      "rollAutomation": {
+        "name": "Automate attack/damage rolls",
+        "hint": "Inject RAW fighting-style and proficiency modifiers into attack and damage rolls (Weapon Finesse, dual-wield, two-handed damage, Weapon Focus, Precise Shooting, non-proficiency). Requires libWrapper. Turn off to apply only always-on bonuses via the loadout effect."
+      },
+      "paperdollStrategy": {
+        "name": "Equipment slot source",
+        "hint": "Where equipped state is read from.",
+        "auto": "Auto (Paper Doll if installed, else max-per-type)",
+        "paperdoll": "Paper Doll slots",
+        "fallback": "Max-per-type (core inventory)"
+      },
+      "defaultHandBudget": {
+        "name": "Default hand budget",
+        "hint": "Number of hands a humanoid actor has for wielding weapons and shields. Raised per-actor by the Four Arms power or monster anatomy effects."
+      },
+      "overlayShieldVariants": {
+        "name": "Overlay: shield variants (JJ)",
+        "hint": "Buckler, auxiliary, crescent, heater, kite, and phalanx shields with strap positions and vulnerable rules. Judges Journal pp. 407–408."
+      },
+      "overlayMasterwork": {
+        "name": "Overlay: masterwork items (RR)",
+        "hint": "Masterwork weapon/armour/instrument tiers. Revised Rulebook p. 159."
+      },
+      "overlayManeuvers": {
+        "name": "Overlay: combat maneuvers",
+        "hint": "Special-maneuver helpers (disarm, knock down, wrestle, sunder, etc.) aware of Combat Trickery and weapon qualities. Revised Rulebook pp. 305–306."
+      },
+      "overlayItemLoss": {
+        "name": "Overlay: item loss from damage (JJ)",
+        "hint": "Destroy carried equipment on heavy area damage. Judges Journal p. 398."
+      },
+      "overlayMounted": {
+        "name": "Overlay: mounted saves",
+        "hint": "Paralysis saves to stay mounted without a military saddle / Mounted Combat or Riding. Revised Rulebook p. 308."
+      },
+      "overlayNamed": {
+        "name": "Overlay: named magic items (JJ)",
+        "hint": "Named arms and armour that unlock bonuses by level. Judges Journal p. 399."
+      },
+      "overlayScavenged": {
+        "name": "Overlay: scavenged equipment (RR)",
+        "hint": "Condition tables for salvaged gear. Revised Rulebook p. 160."
+      },
+      "overlayBeastman": {
+        "name": "Overlay: beastman gear (MM)",
+        "hint": "Barbed armour, blasting-fire bombs, dread banners, and other beastman equipment. Monstrous Manual pp. 55–57."
+      },
+      "overlayEnclosingHelm": {
+        "name": "Overlay: enclosing helmet",
+        "hint": "Heavy helmets impose −1 to surprise rolls and −4 to Listening but grant +2 on Mortal Wounds. Revised Rulebook p. 128."
+      }
+    },
+    "violation": {
+      "handOverflow": "Not enough hands ({handsUsed}/{budget}); free up: {items}.",
+      "multipleArmor": "Only one suit of armour may be worn at a time ({items}).",
+      "tooManyShields": "A combatant may wield at most two shields ({items}).",
+      "shieldNoStyle": "This character lacks the Weapon & Shield fighting style, so the shield grants no Armor Class benefit ({items})."
+    },
+    "notify": {
+      "autoUnequipped": "Auto-unequipped to keep a legal loadout: {items}."
+    }
+  }
+}

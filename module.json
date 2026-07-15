@@ -1,0 +1,80 @@
+{
+  "id": "acks-equipment",
+  "title": "ACKS II — Equipment & Fighting Styles",
+  "description": "Exhaustive RAW equipment-rule automation for the ACKS II system: enforces equippable limits (hands, one worn armour, shields), fighting styles, weapon/armour/thief-skill proficiency requirements, and draw/sheath action economy. Injects fighting-style and proficiency modifiers into attack, damage, AC, and initiative. Optional RAW overlays for shield variants, masterwork, combat maneuvers, mounted saves, and item loss. Integrates theripper93's Paper Doll with a max-per-type fallback. Ships sample proficiencies, equipment, and support macros.",
+  "version": "0.1.0",
+  "socket": true,
+  "compatibility": {
+    "minimum": "14",
+    "verified": "14.364"
+  },
+  "authors": [
+    {
+      "name": "NocTempre"
+    }
+  ],
+  "esmodules": [
+    "scripts/module.mjs"
+  ],
+  "styles": [
+    "styles/acks-equipment.css"
+  ],
+  "languages": [
+    {
+      "lang": "en",
+      "name": "English",
+      "path": "lang/en.json"
+    }
+  ],
+  "packs": [
+    {
+      "name": "macros",
+      "label": "Equipment Macros",
+      "path": "packs/macros",
+      "type": "Macro",
+      "ownership": {
+        "PLAYER": "OBSERVER",
+        "ASSISTANT": "OWNER"
+      }
+    }
+  ],
+  "relationships": {
+    "systems": [
+      {
+        "id": "acks",
+        "type": "system",
+        "compatibility": {
+          "minimum": "14"
+        }
+      }
+    ],
+    "requires": [
+      {
+        "id": "lib-wrapper",
+        "type": "module",
+        "reason": "Wraps AcksActor#rollAttack / AcksItem#rollWeapon to inject RAW fighting-style and proficiency modifiers without editing the core system.",
+        "compatibility": {
+          "minimum": "1.12.0"
+        }
+      },
+      {
+        "id": "socketlib",
+        "type": "module",
+        "reason": "Routes equip auto-resolve and loadout-effect writes through the primary GM so player-owned actors stay in sync.",
+        "compatibility": {
+          "minimum": "1.1.0"
+        }
+      }
+    ],
+    "recommends": [
+      {
+        "id": "fvtt-paper-doll-ui",
+        "type": "module",
+        "reason": "Paper Doll supplies visual equipment slots with main/off-hand distinction. Optional: a max-per-type fallback enforces the same limits on the core inventory without it."
+      }
+    ]
+  },
+  "url": "https://github.com/NocTempre/acks-equipment",
+  "manifest": "https://github.com/NocTempre/acks-equipment/releases/latest/download/module.json",
+  "download": "https://github.com/NocTempre/acks-equipment/releases/latest/download/module.zip"
+}

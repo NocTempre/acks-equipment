@@ -1,0 +1,17 @@
+/* ACKS II — Equipment & Fighting Styles */
+
+.acks-equipment-loadout {
+  font-size: var(--font-size-13, 13px);
+}
+
+.acks-equipment-loadout .violation {
+  color: var(--color-level-error, #b60205);
+}
+
+.acks-equipment-loadout .advisory {
+  color: var(--color-level-warning, #b8860b);
+}
+
+.acks-equipment-loadout .ok {
+  color: var(--color-level-success, #18520b);
+}
