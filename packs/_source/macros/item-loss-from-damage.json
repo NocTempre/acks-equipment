@@ -1,6 +1,6 @@
 {
-  "_id": "acksEqItemLoss0",
-  "_key": "!macros!acksEqItemLoss0",
+  "_id": "acksEqItemLoss00",
+  "_key": "!macros!acksEqItemLoss00",
   "name": "Item Loss from Damage",
   "type": "script",
   "img": "icons/svg/fire.svg",

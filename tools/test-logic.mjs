@@ -431,4 +431,35 @@ check("from the rear the shield is not the first thing lost", rearPlan.destroyed
 check("poison at -30 hp destroys nothing", planItemLoss(jjActor, jjLo, { hp: -30, damageType: "poisonous" }).destroyed.length === 0);
 SETTINGS_STATE.overlayItemLoss = false;
 
+
+// --- Phase 5b: scavenged equipment (RR p. 160) --------------------------------
+const { tableFor, lookup, accumulate, needsReroll, toItemUpdates, SCAVENGED_CAPS } =
+  await import(new URL("overlays/scavenged.mjs", S));
+
+check("bludgeoning weapons use their own table", tableFor(weapon("Mace", { melee: true }), { type: "bludgeoning" }) === "bludgeoning");
+check("swords use the piercing/slashing table", tableFor(weapon("Sword", { melee: true }), { type: "slashing" }) === "piercingSlashing");
+check("armour uses the armour/equipment table", tableFor(armor("Plate", "heavy"), {}) === "armourEquipment");
+check("1-2 is serviceable at full value", lookup("piercingSlashing", 1).value === 1);
+check("19-20 means roll again twice", needsReroll("piercingSlashing", 19) && needsReroll("piercingSlashing", 20) && !needsReroll("piercingSlashing", 5));
+
+// RR's worked example: a scavenged sword rolls 19 (reroll), then 7 and 15 —
+// rusty blade (-1 damage) and loose hilt (-1 initiative), value 66% of normal.
+const ex = accumulate("piercingSlashing", [19, 7, 15]);
+check("RR example: rusty + loose hilt -> -1 damage, -1 initiative", ex.damage === -1 && ex.initiative === -1);
+check("RR example: value falls to ~66% (0.67 x 0.67)", Math.round(ex.valueMultiplier * 100) === 45 || Math.round((1 - ex.valueMultiplier) * 100) >= 33);
+check("the reroll row itself contributes no penalty", !ex.labels.includes("Roll again twice"));
+
+// Effects are cumulative but capped: attack/AC never worse than -5.
+const stacked = accumulate("piercingSlashing", [11, 11, 11, 11, 11, 11, 11]);
+check("attack penalty capped at -5", stacked.attack === SCAVENGED_CAPS.attack);
+
+// Reuse first: results become updates to fields CORE already owns.
+const upd = toItemUpdates(weapon("Sword", { melee: true, damage: "1d6" }), accumulate("piercingSlashing", [7]));
+check("-1 damage becomes a core damage string '1d6-1'", upd["system.damage"] === "1d6-1");
+const updA = toItemUpdates(armor("Plate", "heavy", { ac: 6 }), accumulate("armourEquipment", [11]));
+check("-1 AC becomes a core aac.value", updA["system.aac.value"] === 5);
+const updE = toItemUpdates(armor("Plate", "heavy", { ac: 6 }), accumulate("armourEquipment", [3]));
+check("+1 stone becomes core weight6 (+6 units)", updE["system.weight6"] === 6);
+check("breaks/cannotSneak recorded as a flag for the Judge", toItemUpdates(armor("Plate", "heavy", { ac: 6 }), accumulate("armourEquipment", [7]))["flags.acks-equipment.scavenged"].cannotSneak === true);
+
 console.log(`test-logic: all ${pass} checks passed`);

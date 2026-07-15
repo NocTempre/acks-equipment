@@ -91,7 +91,7 @@ new foundry.applications.api.DialogV2({
 }).render(true);`,
   },
   {
-    _id: "acksEqItemLoss0",
+    _id: "acksEqItemLoss00",
     name: "Item Loss from Damage",
     img: "icons/svg/fire.svg",
     command: `// JJ p. 398 (optional): an area attack that drops a creature to -6 hp or lower
