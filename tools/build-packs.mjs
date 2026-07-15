@@ -1,10 +1,17 @@
 /**
- * Build the module's compendium packs.
+ * Canonical compendium-pack builder.
+ * Synced from acks-module-template — edit there and run bin/sync-toolchain.mjs.
  *
- * Writes source JSON to packs/_source/<pack>/ (one file per document) and
- * compiles each into a Foundry LevelDB pack at packs/<pack>/ with the official
- * Foundry CLI. Mirrors the acks-formation / acks-henchmen / acks-monsters
- * harness (candidate for promotion to a shared acks-lib — see docs/MODEL.md §6).
+ * Document content lives in the module-owned tools/pack-data.mjs, which exports
+ *   export const packs = { "<pack-name>": () => [documents...] };
+ * (values may be arrays or zero-arg functions; large data may live in sibling
+ * files re-exported through the map).
+ *
+ * For each pack: writes one JSON file per document to packs/_source/<pack>/
+ * and compiles a Foundry LevelDB pack at packs/<pack>/ with the official
+ * Foundry CLI. Packs with zero documents are skipped — declare a pack in
+ * module.json only once it has content, so the release workflow's
+ * "verify every declared pack exists" step only sees populated packs.
  *
  * Usage:  npm install && npm run build:packs
  */
@@ -12,14 +19,11 @@ import { compilePack } from "@foundryvtt/foundryvtt-cli";
 import fs from "node:fs";
 import path from "node:path";
 import url from "node:url";
-import { buildMacros, buildProficiencies, buildSamples } from "./pack-data.mjs";
+import { packs } from "./pack-data.mjs";
 
 const ROOT = path.dirname(path.dirname(url.fileURLToPath(import.meta.url)));
 
 async function buildPack(packName, docs) {
-  // Skip packs with no documents yet (added in later phases) so the release
-  // workflow's "verify every declared pack exists" step only sees populated
-  // packs — declare a pack in module.json only once it has content.
   if (!docs.length) {
     console.log(`Skipped empty pack "${packName}" (no documents yet).`);
     return;
@@ -39,6 +43,6 @@ async function buildPack(packName, docs) {
   console.log(`Built pack "${packName}": ${docs.length} document(s) -> ${dbDir}`);
 }
 
-await buildPack("equipment-proficiencies", buildProficiencies());
-await buildPack("equipment-samples", buildSamples());
-await buildPack("macros", buildMacros());
+for (const [name, build] of Object.entries(packs)) {
+  await buildPack(name, typeof build === "function" ? build() : build);
+}

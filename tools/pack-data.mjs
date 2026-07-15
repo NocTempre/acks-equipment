@@ -244,3 +244,14 @@ export function buildSamples() {
 }
 
 export { MODULE_ID, STATS };
+
+/**
+ * Pack contract for the synced tools/build-packs.mjs harness (see
+ * acks-module-template): pack name -> document builder. Empty packs are
+ * skipped by the harness and stay undeclared in module.json.
+ */
+export const packs = {
+  "equipment-proficiencies": buildProficiencies,
+  "equipment-samples": buildSamples,
+  macros: buildMacros,
+};
