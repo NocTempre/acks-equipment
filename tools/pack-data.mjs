@@ -1,14 +1,19 @@
 /**
- * Compendium document builders for acks-equipment.
+ * Compendium document content for acks-equipment (module-owned; the harness in
+ * tools/build-packs.mjs is synced from acks-module-template and consumes the
+ * `packs` map exported at the bottom of this file).
  *
- * Phase 1 ships the support macros. Proficiency ability-items (Phase 2) and
- * annotated sample equipment (Phase 5) extend the exported builders. Keep this
- * file free of Foundry runtime imports — it runs under plain Node at build time.
+ * Keep this file free of Foundry runtime imports — it runs under plain Node at
+ * build time.
+ *
+ * _stats timestamps are FIXED, not Date.now(): a fixed stamp keeps every
+ * rebuild byte-identical so `packs/_source` never churns (see
+ * acks-module-template docs/TOOLCHAIN.md §2 and §8).
  */
 
 const MODULE_ID = "acks-equipment";
-const now = Date.now();
-const STATS = { coreVersion: "14", createdTime: now, modifiedTime: now };
+const STAMP = 1784101908835; // fixed; matches the committed pack sources
+const STATS = { coreVersion: "14", createdTime: STAMP, modifiedTime: STAMP };
 
 /* -------------------------------------------- */
 /*  Macros                                       */
