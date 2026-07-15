@@ -64,10 +64,15 @@
       "handOverflow": "Not enough hands ({handsUsed}/{budget}); free up: {items}.",
       "multipleArmor": "Only one suit of armour may be worn at a time ({items}).",
       "tooManyShields": "A combatant may wield at most two shields ({items}).",
-      "shieldNoStyle": "This character lacks the Weapon & Shield fighting style, so the shield grants no Armor Class benefit ({items})."
+      "shieldNoStyle": "This character lacks the Weapon & Shield fighting style, so the shield grants no Armor Class benefit ({items}).",
+      "weaponNotProficient": "Not proficient with {items}: attacks at −1 and gains no fighting-style benefit.",
+      "armorNotProficient": "{items} is heavier than this character's armour proficiency (max: {max}).",
+      "styleNotProficient": "Untrained in the {style} fighting style: attacks at −1.",
+      "thiefSkillGated": "Backstabbing, Hiding, Pickpocketing, and Sneaking are unavailable while wearing {items}."
     },
     "notify": {
-      "autoUnequipped": "Auto-unequipped to keep a legal loadout: {items}."
+      "autoUnequipped": "Auto-unequipped to keep a legal loadout: {items}.",
+      "paperdollConfigured": "Paper Doll configured for ACKS equipment slots (hands, armour, helmet)."
     }
   }
 }

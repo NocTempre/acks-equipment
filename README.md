@@ -32,8 +32,11 @@ enforces the RAW.
   core's own `system.*.mod` fields via the loadout effect.
 - **Draw / sheathe** — a macro applying the RAW action economy, free with
   Fighting Style Specialization.
-- **Paper Doll integration** *(Phase 4)* — theripper93's `fvtt-paper-doll-ui`
-  slots with main/off-hand distinction, and a max-per-type fallback without it.
+- **Paper Doll integration** — when theripper93's `fvtt-paper-doll-ui` is
+  installed, ACKS slots (hands, armour, helmet) are pushed to it once and
+  drag-and-drop writes `system.equipped`, so the doll feeds the *same* RAW
+  enforcement. Without it, the max-per-type fallback on the core inventory
+  applies. Either way the rules are identical.
 - **Optional RAW overlays** *(Phase 5)* — shield variants, masterwork, maneuvers,
   item loss, mounted saves, named items, scavenged, beastman gear — each a toggle.
 
@@ -52,7 +55,8 @@ npm run validate     # check pack sources
 npm run build:packs  # compile compendia to LevelDB
 ```
 
-Status: **Phases 1–3 complete** (loadout model, equip-limit enforcement, loadout
+Status: **Phases 1–4 complete** (loadout model, equip-limit enforcement, loadout
 effect, proficiency/skill enforcement, 42-item proficiencies compendium,
-libWrapper roll integration, 4 support macros). Phase 4 (Paper Doll) and Phase 5
-(RAW overlays + sample equipment) in progress.
+libWrapper roll integration, Paper Doll integration + fallback, 4 support
+macros). Phase 5 (RAW overlays, sample equipment + actors) in progress; a full
+RAW equipment import is a separate effort.

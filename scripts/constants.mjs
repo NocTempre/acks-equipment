@@ -78,6 +78,7 @@ export const SETTINGS = Object.freeze({
   ENFORCE_MODE: "enforceMode", // "resolve" | "veto" | "advisory"
   ROLL_AUTOMATION: "rollAutomation", // wrap rollAttack/rollWeapon
   PAPERDOLL_STRATEGY: "paperdollStrategy", // "auto" | "paperdoll" | "fallback"
+  PAPERDOLL_CONFIGURED: "paperdollConfigured", // internal: slot layout pushed once; never clobber GM edits
   DEFAULT_HAND_BUDGET: "defaultHandBudget",
   // Optional-rule overlays (RAW, off unless core-default).
   OVERLAY_SHIELD_VARIANTS: "overlayShieldVariants",

@@ -192,4 +192,24 @@ const dualLo = getLoadout(actor([weapon("Sword", { melee: true, id: "x" }), weap
 const dualChanges = buildLoadoutChanges(actor([], { flags: { styles: "dual" } }), dualLo);
 check("dual style → +1 melee attack in the loadout effect", dualChanges.some((c) => c.key === "system.thac0.mod.melee" && Number(c.value) === 1));
 
+// --- Phase 4: Paper Doll slot config ----------------------------------------
+// Paper Doll compiles each slot `filter` via new Function("item", body) at
+// runtime, so a typo would only surface in-world. Compile the REAL config here.
+const { ACKS_PAPERDOLL_CONFIG } = await import(new URL("paperdoll.mjs", S));
+check("paper-doll config sets EQUIPPED_PATH so ACKS writes system.equipped", ACKS_PAPERDOLL_CONFIG.EQUIPPED_PATH === "equipped");
+const slotFilter = (region, slot) => ACKS_PAPERDOLL_CONFIG.SLOTS[region][slot][0].filter;
+const compile = (body) => new Function("item", body);
+const pdPlate = { type: "armor", name: "Plate Armor", system: { type: "heavy" } };
+const pdHelm = { type: "armor", name: "Heavy Helmet", system: { type: "medium" } };
+const pdShield = { type: "armor", name: "Shield", system: { type: "shield" } };
+const pdSword = { type: "weapon", name: "Sword", system: {} };
+const pdRope = { type: "item", name: "Rope", system: {} };
+const fBody = compile(slotFilter("LEFT", "BODY"));
+const fHead = compile(slotFilter("LEFT", "HEAD"));
+const fHand = compile(slotFilter("BOTTOM_RIGHT_MAIN", "MAIN_RIGHT"));
+check("BODY slot: armour suit only (no helmet, no shield)", fBody(pdPlate) && !fBody(pdHelm) && !fBody(pdShield));
+check("HEAD slot: helmets only", fHead(pdHelm) && !fHead(pdPlate));
+check("hand slots: weapons + shields only", fHand(pdSword) && fHand(pdShield) && !fHand(pdRope) && !fHand(pdPlate));
+check("both hand slots share the hand filter", slotFilter("BOTTOM_LEFT_MAIN", "MAIN_LEFT") === slotFilter("BOTTOM_RIGHT_MAIN", "MAIN_RIGHT"));
+
 console.log(`test-logic: all ${pass} checks passed`);
