@@ -1,0 +1,20 @@
+{
+  "_id": "acksEqAnnotate00",
+  "_key": "!macros!acksEqAnnotate00",
+  "name": "Annotate Weapons (RAW profiles)",
+  "type": "script",
+  "img": "icons/svg/book.svg",
+  "scope": "global",
+  "command": "// Stamp acks-equipment size/hands/quality flags onto the selected actor's weapons\n// (or, with no selection, every weapon in the world) from the built-in RAW lookup.\nconst api = game.modules.get(\"acks-equipment\")?.api ?? globalThis.acksEquipment;\nif (!api) { ui.notifications.error(\"ACKS Equipment is not active.\"); return; }\nconst actor = canvas.tokens.controlled[0]?.actor ?? game.user.character;\nconst items = actor ? actor.items.filter((i) => i.type === \"weapon\") : game.items.filter((i) => i.type === \"weapon\");\nlet n = 0;\nfor (const it of items) { if (await api.annotateItem(it)) n++; }\nui.notifications.info(`Annotated ${n} weapon(s)${actor ? \" on \" + actor.name : \" in the world\"}.`);",
+  "folder": null,
+  "flags": {},
+  "ownership": {
+    "default": 0
+  },
+  "sort": 0,
+  "_stats": {
+    "coreVersion": "14",
+    "createdTime": 1784101908835,
+    "modifiedTime": 1784101908835
+  }
+}

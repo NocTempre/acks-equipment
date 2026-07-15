@@ -176,7 +176,7 @@ const PROFS = [
   { n: "Unarmed Fighting", t: "class", m: { unarmedFighting: "1" }, d: "Deal lethal damage when brawling, and damage foes in metal armour without hurting yourself." },
 ];
 
-function effectDoc(effId, name, markers) {
+function effectDoc(itemId, effId, name, markers) {
   const changes = Object.entries(markers).map(([domain, value]) => ({
     key: `flags.${MODULE_ID}.${domain}`,
     mode: "override",
@@ -185,6 +185,9 @@ function effectDoc(effId, name, markers) {
   }));
   return {
     _id: effId,
+    // Embedded docs are compiled as their own LevelDB entries, so they need a
+    // _key: !<parentCollection>.<embeddedCollection>!<parentId>.<embeddedId>.
+    _key: `!items.effects!${itemId}.${effId}`,
     name,
     img: UP,
     type: "base",
@@ -223,7 +226,7 @@ function proficiencyDoc(p, i) {
       save: "",
       _schemaVersion: 3,
     },
-    effects: hasMarkers ? [effectDoc(effId, p.n, p.m)] : [],
+    effects: hasMarkers ? [effectDoc(id, effId, p.n, p.m)] : [],
     flags: { [MODULE_ID]: { example: true } },
     ownership: { default: 0 },
     sort: (i + 1) * 100,

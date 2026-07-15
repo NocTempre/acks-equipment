@@ -1,0 +1,20 @@
+{
+  "_id": "acksEqConfig0000",
+  "_key": "!macros!acksEqConfig0000",
+  "name": "Configure Proficiencies",
+  "type": "script",
+  "img": "icons/svg/statue.svg",
+  "scope": "global",
+  "command": "// Set the selected actor's fighting styles, weapon proficiency, and armour cap.\nconst MOD = \"acks-equipment\";\nconst actor = canvas.tokens.controlled[0]?.actor ?? game.user.character;\nif (!actor) { ui.notifications.warn(\"Select a token or assign a character.\"); return; }\nconst cur = {\n  styles: actor.getFlag(MOD, \"styles\") ?? \"single,missile\",\n  weaponProficiency: actor.getFlag(MOD, \"weaponProficiency\") ?? \"all\",\n  armorMax: actor.getFlag(MOD, \"armorMax\") ?? \"heavy\",\n};\nconst armours = [\"unarmored\", \"veryLight\", \"light\", \"medium\", \"heavy\"];\nconst content = `<div style=\"display:grid;gap:.5rem\">\n  <label>Fighting styles (CSV of single, missile, dual, twoHanded, weaponShield)\n    <input name=\"styles\" value=\"${cur.styles}\"></label>\n  <label>Weapon proficiency (\"all\" or CSV of categories/weapons)\n    <input name=\"weaponProficiency\" value=\"${cur.weaponProficiency}\"></label>\n  <label>Maximum armour category\n    <select name=\"armorMax\">${armours.map((a) => `<option value=\"${a}\" ${a === cur.armorMax ? \"selected\" : \"\"}>${a}</option>`).join(\"\")}</select></label>\n</div>`;\nconst form = await foundry.applications.api.DialogV2.prompt({\n  window: { title: `Proficiencies — ${actor.name}` },\n  content,\n  ok: { label: \"Save\", callback: (_ev, btn) => new FormData(btn.form) },\n  rejectClose: false,\n});\nif (!form) return;\nawait actor.update({\n  [`flags.${MOD}.styles`]: form.get(\"styles\"),\n  [`flags.${MOD}.weaponProficiency`]: form.get(\"weaponProficiency\"),\n  [`flags.${MOD}.armorMax`]: form.get(\"armorMax\"),\n});\nui.notifications.info(`Saved proficiency profile for ${actor.name}.`);",
+  "folder": null,
+  "flags": {},
+  "ownership": {
+    "default": 0
+  },
+  "sort": 0,
+  "_stats": {
+    "coreVersion": "14",
+    "createdTime": 1784101908835,
+    "modifiedTime": 1784101908835
+  }
+}

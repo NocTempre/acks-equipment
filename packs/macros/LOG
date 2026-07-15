@@ -1,0 +1,5 @@
+2026/07/15-03:51:49.017 5464 Delete type=3 #1
+2026/07/15-03:51:49.017 161c Level-0 table #5: started
+2026/07/15-03:51:49.033 161c Level-0 table #5: 2743 bytes OK
+2026/07/15-03:51:49.033 161c Delete type=0 #3
+2026/07/15-03:51:49.033 161c Manual compaction at level-0 from '!macros!acksEqAnnotate00' @ 72057594037927935 : 1 .. '!macros!acksEqInspect000' @ 0 : 0; will stop at (end)
