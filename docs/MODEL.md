@@ -78,21 +78,33 @@ and the shape proposed for a future core `acks.preRollAttack`.
 Pack document `_id`s carry the short key `acksEq`, declared in `module.json` at
 `flags.acks-equipment.idPrefix` (validator enforces it once declared).
 
-## 5. Boundaries with sibling modules
+## 5. Boundaries with sibling modules (in force)
 
 - **acks-formation** owns encumbrance→speed, light/ration consumption. This
-  module never writes `system.movement.*`/`system.encumbrance.*`; it exposes the
-  loadout so formation keeps reading equipped weapons/`weight6` as today.
-- **acks-henchmen** owns coin math. The purchase macro reuses
-  `game.modules.get("acks-henchmen").api.adapter.spendGold/grantGold`.
+  module never writes `system.movement.*` and never re-implements encumbrance;
+  it wraps `computeEncumbrance` (see §1) only to apply the RAW rules core's flat
+  sum gets wrong, so formation keeps reading one consistent core value.
+- **acks-henchmen** owns coin math. The purchase-from-market macro (not yet
+  built) reuses `game.modules.get("acks-henchmen").api.adapter.spendGold/grantGold`
+  rather than re-implementing denomination handling.
 - **acks-monsters** owns gear storage and the `DAMAGE_TYPES`/`NATURAL_WEAPONS`
-  enums, read raw/soft. The classifier's `damageType` aligns to them.
+  enums, read raw/soft so it stays optional. The classifier's `damageType`
+  aligns to them.
 - **Surprise** determination + the `surprised` status are core's; this module
   only reads them (first-round interrupt helpers).
 
-## 6. Proposed shared library (not yet built)
+## 6. Shared library (idea, not built)
 
-`build-packs.mjs`, the effect collector, the DOM-injection idiom, and the
-`DAMAGE_TYPES` enum are duplicated across acks-* modules. Propose an `acks-lib`
-(or promote acks-monsters as enum owner). This module vendors copies with a
-`// TODO: migrate to acks-lib` marker; migration is a separate cross-module task.
+`build-packs.mjs`, the Active-Effect modifier collector, the DOM-injection
+idiom, and the `DAMAGE_TYPES` enum are duplicated across acks-* modules and are
+candidates for extraction. This module vendors its copies; extraction is a
+separate cross-module task, not a prerequisite for anything here.
+
+> **Not in effect — future planning.** The template repo carries a *proposal*
+> (`docs/FAMILY.md`, `docs/REFACTOR_PLAN.md`) for a strict family hierarchy in
+> which a new required `acks-lib` becomes the only permitted inter-module edge
+> and the boundaries in §5 are re-mediated through it. **It is a proposal only:
+> `docs/TOOLCHAIN.md` remains the only canon in force, and no phase of it runs
+> without the maintainer's explicit go-ahead.** Nothing in this module should be
+> restructured against it, and §5 above stays authoritative until a phase
+> actually lands.
