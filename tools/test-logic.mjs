@@ -389,4 +389,46 @@ check("adventurer's harness profile flags the harness rule", containerProfileFor
 check("bowquiver profile flags the 2-item rule", containerProfileFor("Bowquiver").bowquiver === true);
 check("a sword is not a container", containerProfileFor("Sword") === null);
 
+
+// --- Phase 5b: item loss from damage (JJ p. 398) ------------------------------
+SETTINGS_STATE.overlayItemLoss = true;
+const { stonesAtRisk, isVulnerable, materialOf, planItemLoss, LOSS_ORDER_FRONT, LOSS_ORDER_REAR } =
+  await import(new URL("overlays/item-loss.mjs", S));
+
+check("no loss above -6 hp", stonesAtRisk(-5) === 0 && stonesAtRisk(0) === 0);
+check("-6 hp risks 1 stone; each further 6 damage risks another", stonesAtRisk(-6) === 1 && stonesAtRisk(-11) === 1 && stonesAtRisk(-12) === 2 && stonesAtRisk(-18) === 3);
+check("rear order is the exact reverse of the front order", LOSS_ORDER_REAR.join() === [...LOSS_ORDER_FRONT].reverse().join());
+
+// Materials table (JJ p. 398): fire burns cloth, piercing does not; poison
+// destroys nothing at all.
+check("fire destroys cloth/leather/wood, not metal", isVulnerable("cloth", "fire") && isVulnerable("leather", "fire") && !isVulnerable("metal", "fire"));
+check("piercing destroys only ceramic and glass", isVulnerable("glass", "piercing") && !isVulnerable("cloth", "piercing"));
+check("poison destroys nothing", !isVulnerable("cloth", "poisonous") && !isVulnerable("metal", "poisonous"));
+check("bludgeoning destroys metal and stone, not cloth", isVulnerable("metal", "bludgeoning") && !isVulnerable("cloth", "bludgeoning"));
+check("material guessed from name (oil = combustible, holy water = good)", materialOf(gear("Oil, Military", 1)) === "combustible" && materialOf(gear("Holy Water", 1)) === "good");
+check("explicit material flag beats the guess", materialOf(gear("Odd Thing", 1, { flags: { material: "glass" } })) === "glass");
+
+// The Judges Journal's own worked example: Andravus at -18 hp from a fireball
+// risks 3 stone; fire cannot touch his metal flasks of holy water or his coins,
+// so those are skipped rather than consuming the budget.
+const jjShield = { id: "sh", name: "Shield", type: "armor", system: { equipped: true, type: "shield", aac: { value: 1 }, weight6: 6 }, getFlag: (_m, k) => ({ material: "wood" }[k]), effects: [] };
+const jjSpear = gear("Spear", 6, { id: "sp", type: "weapon", flags: { material: "wood" } });
+const jjHolyWater = gear("Holy Water", 1, { id: "hw", flags: { material: "metal" } });
+const jjOil = gear("Oil, Military", 1, { id: "oil" });
+const jjActor = withItems([jjShield, jjSpear, jjHolyWater, jjOil]);
+const jjLo = { handShields: [jjShield], armor: null };
+const plan = planItemLoss(jjActor, jjLo, { hp: -18, damageType: "fire" });
+check("fireball at -18 hp risks 3 stone", plan.stones === 3);
+check("wooden shield in hand is destroyed first (front order)", plan.destroyed[0].item.id === "sh");
+check("metal holy-water flask is skipped by fire, not destroyed", !plan.destroyed.some((d) => d.item.id === "hw") && plan.survivors >= 1);
+check("the wooden spear burns too", plan.destroyed.some((d) => d.item.id === "sp"));
+
+// Damaged from the rear the order flips: the shield in hand is now last.
+const rearPlan = planItemLoss(jjActor, jjLo, { hp: -6, damageType: "fire", fromRear: true });
+check("from the rear the shield is not the first thing lost", rearPlan.destroyed[0]?.item.id !== "sh");
+
+// Poison destroys nothing regardless of how far below -6 the victim is.
+check("poison at -30 hp destroys nothing", planItemLoss(jjActor, jjLo, { hp: -30, damageType: "poisonous" }).destroyed.length === 0);
+SETTINGS_STATE.overlayItemLoss = false;
+
 console.log(`test-logic: all ${pass} checks passed`);

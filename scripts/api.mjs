@@ -10,6 +10,8 @@ import { getLoadout, VIOLATION, trainedStyles, specializedStyles, handBudget } f
 import { classifyWeapon, handCost, focusGroup, weaponKey } from "./profiles.mjs";
 import { weaponProficiency, isWeaponProficient, armorMax, isArmorProficient, thiefSkillsGated, isArmorGatedSkill } from "./proficiency.mjs";
 import { refreshLoadout } from "./enforce.mjs";
+import { planItemLoss, stonesAtRisk, isVulnerable, materialOf } from "./overlays/item-loss.mjs";
+import { maneuverMods, MANEUVERS } from "./overlays/maneuvers.mjs";
 import { collectEffectModifiers, sumEffectModifiers, collectStringFlags, hasEffectFlag } from "./effects.mjs";
 import * as CONFIG_DATA from "./config.mjs";
 
@@ -69,6 +71,13 @@ export function buildApi() {
     isArmorProficient,
     thiefSkillsGated,
     isArmorGatedSkill,
+    // Overlays
+    planItemLoss,
+    stonesAtRisk,
+    isVulnerable,
+    materialOf,
+    maneuverMods,
+    MANEUVERS,
     // Containers
     containerReport,
     contentsOf,
