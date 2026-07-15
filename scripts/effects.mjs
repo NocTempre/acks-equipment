@@ -108,7 +108,10 @@ export function collectStringFlags(actor, domain) {
  * @param {import("./loadout.mjs").Loadout} loadout
  */
 export function buildLoadoutChanges(actor, loadout) {
-  const ADD = CONST.ACTIVE_EFFECT_MODES.ADD;
+  // v14 uses string-typed change modes (CONST.ACTIVE_EFFECT_CHANGE_TYPES);
+  // CONST.ACTIVE_EFFECT_MODES is deprecated and accessing it logs a warning.
+  // Fall back to the numeric ADD value (2) only if the new enum is absent.
+  const ADD = CONST.ACTIVE_EFFECT_CHANGE_TYPES?.ADD ?? 2;
   const changes = [];
   const add = (key, value) => {
     if (value) changes.push({ key, mode: ADD, value: String(value), priority: 20 });
@@ -121,7 +124,8 @@ export function buildLoadoutChanges(actor, loadout) {
     const [style, kind] = s.split(":");
     if (kind === "spec") spec.add(style);
   }
-  if (loadout.activeStyle && spec.has(loadout.activeStyle)) {
+  // spec keys come from collectStringFlags lowercased; activeStyle is camelCase.
+  if (loadout.activeStyle && spec.has(loadout.activeStyle.toLowerCase())) {
     const bonus = STYLE_SPEC_BONUS[loadout.activeStyle] ?? {};
     add("system.aac.mod", bonus.ac);
     add("system.initiative.mod", bonus.init);

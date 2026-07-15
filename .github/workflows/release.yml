@@ -44,6 +44,9 @@ jobs:
       - name: Validate scripts, templates, and JSON
         run: npm run validate
 
+      - name: Run logic tests
+        run: npm test
+
       - name: Verify every declared pack exists
         run: |
           node -e '

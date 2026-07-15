@@ -27,13 +27,15 @@ export function handBudget(actor) {
 
 /** Fighting styles the actor is TRAINED in (RAW: single + missile mandatory). */
 export function trainedStyles(actor) {
+  // All style keys are stored lowercased for case-insensitive comparison
+  // against `activeStyle.toLowerCase()`.
   const set = new Set(["single", "missile"]);
   const flag = actor.getFlag?.(MODULE_ID, "styles");
-  if (typeof flag === "string") flag.split(",").map((s) => s.trim()).filter(Boolean).forEach((s) => set.add(s));
-  else if (Array.isArray(flag)) flag.forEach((s) => set.add(String(s)));
+  if (typeof flag === "string") flag.split(",").map((s) => s.trim().toLowerCase()).filter(Boolean).forEach((s) => set.add(s));
+  else if (Array.isArray(flag)) flag.forEach((s) => set.add(String(s).toLowerCase()));
   for (const s of collectStringFlags(actor, EFFECT_DOMAINS.STYLE_PROFICIENT)) {
     const [style, kind] = s.split(":");
-    if (!kind) set.add(style); // base training marker
+    if (!kind) set.add(style); // base training marker (already lowercased)
   }
   return set;
 }
@@ -111,7 +113,7 @@ export function getLoadout(actor, opts = {}) {
 
   const trained = trainedStyles(actor);
   const spec = specializedStyles(actor);
-  const styleProficient = trained.has(activeStyle);
+  const styleProficient = trained.has(activeStyle?.toLowerCase());
 
   // --- Violations -------------------------------------------------------
   const violations = [];
@@ -160,7 +162,7 @@ export function getLoadout(actor, opts = {}) {
 
 /** Does the actor have the Weapon & Shield style (so shields grant AC)? */
 function canUseShieldStyle(actor, trained = trainedStyles(actor)) {
-  return trained.has(STYLE.WEAPON_SHIELD);
+  return trained.has(STYLE.WEAPON_SHIELD.toLowerCase());
 }
 
 /**
