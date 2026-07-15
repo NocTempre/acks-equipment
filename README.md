@@ -24,10 +24,14 @@ enforces the RAW.
   42 combat/equipment proficiencies (Fighting Style Specialization, Weapon Finesse,
   Weapon Focus, Martial/Armour Training, Combat Trickery, slayers, and more) plus
   a Configure-Proficiencies macro.
-- **Combat-roll automation** *(Phase 3)* — Weapon Finesse, dual-wield, two-handed
-  damage, Weapon Focus, Precise Shooting, non-proficiency penalty, via libWrapper.
-- **Draw / sheath / surprise** *(Phase 3)* — RAW action economy with the
-  Specialization free-swap; first-round readied-missile/long-weapon interrupts.
+- **Combat-roll automation** — per-weapon RAW modifiers injected into core's
+  attack/damage rolls via libWrapper: the non-proficiency −1 (weapon *or*
+  untrained style, applied once), Weapon Finesse (DEX for STR), and the
+  two-handed damage upsize. Loadout-level bonuses (style Specialization,
+  dual-wield +1, Combat Reflexes, Swashbuckling) need no patch — they ride
+  core's own `system.*.mod` fields via the loadout effect.
+- **Draw / sheathe** — a macro applying the RAW action economy, free with
+  Fighting Style Specialization.
 - **Paper Doll integration** *(Phase 4)* — theripper93's `fvtt-paper-doll-ui`
   slots with main/off-hand distinction, and a max-per-type fallback without it.
 - **Optional RAW overlays** *(Phase 5)* — shield variants, masterwork, maneuvers,
@@ -48,6 +52,7 @@ npm run validate     # check pack sources
 npm run build:packs  # compile compendia to LevelDB
 ```
 
-Status: **Phases 1–2 complete** (scaffold, loadout model, equip-limit enforcement,
-loadout effect, proficiency/skill enforcement, 42-item proficiencies compendium,
-inspector + annotate + configure macros). Phases 3–5 in progress.
+Status: **Phases 1–3 complete** (loadout model, equip-limit enforcement, loadout
+effect, proficiency/skill enforcement, 42-item proficiencies compendium,
+libWrapper roll integration, 4 support macros). Phase 4 (Paper Doll) and Phase 5
+(RAW overlays + sample equipment) in progress.

@@ -43,6 +43,40 @@ const content = \`<div class="acks-equipment-loadout">
 new foundry.applications.api.DialogV2({ window: { title: \`Loadout — \${actor.name}\` }, content, buttons: [{ action: "ok", label: "Close", default: true }] }).render(true);`,
   },
   {
+    _id: "acksEqDrawSheath",
+    name: "Draw / Sheathe",
+    img: "icons/svg/sword.svg",
+    command: `// Draw/sheathe a weapon or ready/sling a shield, reporting the RAW action cost.
+// RR pp. 293-294: sheathing one weapon and drawing another is an action in lieu
+// of movement (dropping one instead is free); readying a shield likewise.
+// Fighting Style Specialization (RR p. 108) makes both cost no action.
+const MOD = "acks-equipment";
+const api = game.modules.get(MOD)?.api ?? globalThis.acksEquipment;
+if (!api) { ui.notifications.error("ACKS Equipment is not active."); return; }
+const actor = canvas.tokens.controlled[0]?.actor ?? game.user.character;
+if (!actor) { ui.notifications.warn("Select a token or assign a character."); return; }
+const gear = actor.items.filter((i) => i.type === "weapon" || (i.type === "armor" && i.system.type === "shield"));
+if (!gear.length) { ui.notifications.warn("No weapons or shields on this character."); return; }
+const freeSwap = api.hasEffectFlag(actor, "freeSwap");
+const opts = gear.map((i) => \`<option value="\${i.id}">\${i.system.equipped ? "Sheathe / sling" : "Draw / ready"} — \${i.name}</option>\`).join("");
+const costText = freeSwap
+  ? "<b>Fighting Style Specialization:</b> this costs <b>no action</b>."
+  : "Costs an <b>action in lieu of movement</b>. (Dropping a weapon rather than sheathing it is free.)";
+const form = await foundry.applications.api.DialogV2.prompt({
+  window: { title: \`Draw / Sheathe — \${actor.name}\` },
+  content: \`<p>\${costText}</p><label>Item <select name="id" style="width:100%">\${opts}</select></label>\`,
+  ok: { label: "Do it", callback: (_e, btn) => new FormData(btn.form) },
+  rejectClose: false,
+});
+if (!form) return;
+const item = actor.items.get(form.get("id"));
+await item.update({ "system.equipped": !item.system.equipped });
+ChatMessage.create({
+  speaker: ChatMessage.getSpeaker({ actor }),
+  content: \`<p><b>\${actor.name}</b> \${item.system.equipped ? "draws/readies" : "sheathes/slings"} <b>\${item.name}</b> — \${freeSwap ? "no action (Fighting Style Specialization)" : "an action in lieu of movement"}.</p>\`,
+});`,
+  },
+  {
     _id: "acksEqConfig0000",
     name: "Configure Proficiencies",
     img: "icons/svg/statue.svg",

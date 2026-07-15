@@ -12,7 +12,7 @@
  * with zero patching.
  */
 import { EFFECT_PREFIX, MODULE_ID, EFFECT_DOMAINS, LOADOUT_EFFECT_NAME, LOADOUT_EFFECT_FLAG } from "./constants.mjs";
-import { STYLE_SPEC_BONUS } from "./config.mjs";
+import { STYLE_SPEC_BONUS, STYLE, DUAL_WIELD_ATTACK_BONUS } from "./config.mjs";
 
 /** All active effects on the actor, tolerant of Foundry version differences. */
 function appliedEffects(actor) {
@@ -134,6 +134,12 @@ export function buildLoadoutChanges(actor, loadout) {
     add("system.thac0.mod.missile", bonus.attackMissile);
     add("system.damage.mod.melee", bonus.damageMelee);
   }
+
+  // Base dual-weapon bonus: RAW grants +1 to the melee attack throw simply for
+  // having a second weapon (RR p. 296) — independent of Specialization, which
+  // adds its own +1 above. Untrained use still takes the −1 non-proficiency
+  // penalty, applied per-weapon in roll-wrap.mjs.
+  if (loadout.activeStyle === STYLE.DUAL) add("system.thac0.mod.melee", DUAL_WIELD_ATTACK_BONUS);
 
   // Flat always-on init (Combat Reflexes) and AC domains that are NOT style-gated.
   add("system.initiative.mod", sumEffectModifiers(actor, EFFECT_DOMAINS.STYLE_INIT));

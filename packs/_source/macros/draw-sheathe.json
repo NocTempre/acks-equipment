@@ -1,0 +1,20 @@
+{
+  "_id": "acksEqDrawSheath",
+  "_key": "!macros!acksEqDrawSheath",
+  "name": "Draw / Sheathe",
+  "type": "script",
+  "img": "icons/svg/sword.svg",
+  "scope": "global",
+  "command": "// Draw/sheathe a weapon or ready/sling a shield, reporting the RAW action cost.\n// RR pp. 293-294: sheathing one weapon and drawing another is an action in lieu\n// of movement (dropping one instead is free); readying a shield likewise.\n// Fighting Style Specialization (RR p. 108) makes both cost no action.\nconst MOD = \"acks-equipment\";\nconst api = game.modules.get(MOD)?.api ?? globalThis.acksEquipment;\nif (!api) { ui.notifications.error(\"ACKS Equipment is not active.\"); return; }\nconst actor = canvas.tokens.controlled[0]?.actor ?? game.user.character;\nif (!actor) { ui.notifications.warn(\"Select a token or assign a character.\"); return; }\nconst gear = actor.items.filter((i) => i.type === \"weapon\" || (i.type === \"armor\" && i.system.type === \"shield\"));\nif (!gear.length) { ui.notifications.warn(\"No weapons or shields on this character.\"); return; }\nconst freeSwap = api.hasEffectFlag(actor, \"freeSwap\");\nconst opts = gear.map((i) => `<option value=\"${i.id}\">${i.system.equipped ? \"Sheathe / sling\" : \"Draw / ready\"} — ${i.name}</option>`).join(\"\");\nconst costText = freeSwap\n  ? \"<b>Fighting Style Specialization:</b> this costs <b>no action</b>.\"\n  : \"Costs an <b>action in lieu of movement</b>. (Dropping a weapon rather than sheathing it is free.)\";\nconst form = await foundry.applications.api.DialogV2.prompt({\n  window: { title: `Draw / Sheathe — ${actor.name}` },\n  content: `<p>${costText}</p><label>Item <select name=\"id\" style=\"width:100%\">${opts}</select></label>`,\n  ok: { label: \"Do it\", callback: (_e, btn) => new FormData(btn.form) },\n  rejectClose: false,\n});\nif (!form) return;\nconst item = actor.items.get(form.get(\"id\"));\nawait item.update({ \"system.equipped\": !item.system.equipped });\nChatMessage.create({\n  speaker: ChatMessage.getSpeaker({ actor }),\n  content: `<p><b>${actor.name}</b> ${item.system.equipped ? \"draws/readies\" : \"sheathes/slings\"} <b>${item.name}</b> — ${freeSwap ? \"no action (Fighting Style Specialization)\" : \"an action in lieu of movement\"}.</p>`,\n});",
+  "folder": null,
+  "flags": {},
+  "ownership": {
+    "default": 0
+  },
+  "sort": 0,
+  "_stats": {
+    "coreVersion": "14",
+    "createdTime": 1784101908835,
+    "modifiedTime": 1784101908835
+  }
+}

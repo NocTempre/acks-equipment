@@ -37,6 +37,7 @@ const { getLoadout, VIOLATION } = await import(new URL("loadout.mjs", S));
 const { buildLoadoutChanges } = await import(new URL("effects.mjs", S));
 const { weaponProficiency, isWeaponProficient, armorMax, isArmorProficient, thiefSkillsGated, swashbucklingAC } = await import(new URL("proficiency.mjs", S));
 const { buildProficiencies } = await import(new URL("../tools/pack-data.mjs", import.meta.url));
+const { computeAttackMods } = await import(new URL("roll-wrap.mjs", S));
 
 const weapon = (name, over = {}) => ({
   id: over.id ?? name.replace(/\W/g, ""),
@@ -146,5 +147,49 @@ const changeKeys = profs.flatMap((d) => (d.effects[0]?.changes ?? []).map((c) =>
 check("effect change keys are flags.acks-equipment.* with override mode", changeKeys.length > 0 && changeKeys.every((k) => k.startsWith("flags.acks-equipment.")) && profs.every((d) => (d.effects[0]?.changes ?? []).every((c) => c.mode === "override")));
 const wsSpec = profs.find((d) => d.name.includes("Weapon & Shield"));
 check("W&S spec item carries styleProficient=weaponShield:spec + freeSwap", wsSpec.effects[0].changes.some((c) => c.key.endsWith("styleProficient") && c.value === "weaponShield:spec") && wsSpec.effects[0].changes.some((c) => c.key.endsWith("freeSwap")));
+
+// --- Phase 3: per-attack roll modifiers --------------------------------------
+// Actors here need items.get(id); extend the mock minimally.
+const rollActor = (items, over = {}) => {
+  const a = actor(items, over);
+  a.items = Object.assign(items.slice(), { get: (id) => items.find((i) => i.id === id) });
+  a.system = over.system ?? { scores: { str: { mod: 1 }, dex: { mod: 3 } } };
+  return a;
+};
+const swordItem = weapon("Sword", { melee: true, id: "sw" });
+const attData = (item) => ({ item: { _id: item.id, name: item.name, system: { bonus: 0, damage: "1d6" } }, roll: {} });
+
+// Proficient + trained style, one-handed with a shield → no per-attack mods.
+let a = rollActor([swordItem, armor("Shield", "shield", { id: "sh" })], { flags: { styles: "weaponShield" }, system: { scores: { str: { mod: 1 }, dex: { mod: 1 } } } });
+check("proficient, trained, no finesse → no per-attack mods", computeAttackMods(a, attData(swordItem), { type: "melee" }) === null);
+
+// Non-proficient weapon → −1 (applied once).
+a = rollActor([swordItem], { flags: { weaponProficiency: "axe", styles: "single,twoHanded" }, system: { scores: { str: { mod: 1 }, dex: { mod: 1 } } } });
+let m = computeAttackMods(a, attData(swordItem), { type: "melee" });
+check("non-proficient weapon → −1", m && m.bonusDelta === -1);
+
+// Untrained style also → −1, and never stacks to −2 with the weapon penalty.
+a = rollActor([swordItem], { flags: { weaponProficiency: "axe", styles: "single" }, system: { scores: { str: { mod: 1 }, dex: { mod: 1 } } } });
+m = computeAttackMods(a, attData(swordItem), { type: "melee" });
+check("weapon+style both untrained → still only −1", m.bonusDelta === -1);
+
+// Weapon Finesse swaps STR (+1) for DEX (+3) → net +2.
+a = rollActor([swordItem], { flags: { styles: "single,twoHanded" }, effects: [marker("finesse", "1")], system: { scores: { str: { mod: 1 }, dex: { mod: 3 } } } });
+m = computeAttackMods(a, attData(swordItem), { type: "melee" });
+check("Weapon Finesse → +(dex−str) = +2", m && m.bonusDelta === 2);
+check("Weapon Finesse does not apply to missile attacks", computeAttackMods(a, attData(swordItem), { type: "missile" })?.bonusDelta !== 2);
+
+// Lone medium sword is wielded two-handed → damage upsized 1d6 → 1d8.
+check("two-handed grip upsizes damage to 1d8", m.damage === "1d8");
+
+// A large weapon has no 1H/2H split → no damage override.
+const greatItem = weapon("Two-Handed Sword", { melee: true, id: "gs" });
+a = rollActor([greatItem], { flags: { styles: "single,twoHanded" }, system: { scores: { str: { mod: 1 }, dex: { mod: 1 } } } });
+check("large weapon → no damage upsize", (computeAttackMods(a, attData(greatItem), { type: "melee" })?.damage ?? null) === null);
+
+// Dual-wield base +1 is loadout-level (belongs in the effect, not the wrap).
+const dualLo = getLoadout(actor([weapon("Sword", { melee: true, id: "x" }), weapon("Dagger", { melee: true, id: "y" })], { flags: { styles: "dual" } }));
+const dualChanges = buildLoadoutChanges(actor([], { flags: { styles: "dual" } }), dualLo);
+check("dual style → +1 melee attack in the loadout effect", dualChanges.some((c) => c.key === "system.thac0.mod.melee" && Number(c.value) === 1));
 
 console.log(`test-logic: all ${pass} checks passed`);
