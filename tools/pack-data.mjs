@@ -277,9 +277,216 @@ export function buildProficiencies() {
   return PROFS.map(proficiencyDoc);
 }
 
-/** Phase 5 fills this (annotated sample equipment + shield variants). */
+/* -------------------------------------------- */
+/*  Sample equipment (JJ pp. 407-408; RR p. 159)*/
+/* -------------------------------------------- */
+
+// These AUGMENT core's acks-all-equipment rather than duplicate it: everything
+// here is content the core system does not ship. Ordinary RAW weapons/armour
+// stay in core and are upgraded in place by the "Annotate Weapons" macro.
+
+const SHIELD_VARIANTS = [
+  { k: "buckler", n: "Buckler", w: 1, d: "A round shield up to 2' across. <strong>Only</strong> characters with Fighting Style Specialization (Weapon &amp; Shield) gain its +1 AC; others gain no benefit. Does not protect a vulnerable character. Encumbrance 1 item." },
+  { k: "auxiliary", n: "Auxiliary Shield", w: 6, d: "A hexagonal or oval shield ~2'×3.5' for light infantry and cavalry. In hand: +1 AC (dismounted, except when surprised, retreating, or attacked from behind; mounted, to self or mount, alternating each move). Strapped on the back: +1 AC against attacks from behind (Specialization does not increase this). 1 stone." },
+  { k: "crescent", n: "Crescent Shield", w: 6, d: "An oval shield with crescent cut-outs. In hand: +1 AC except when vulnerable. Strapped on the front: +1 AC except when vulnerable (2 stone, no Specialization bonus). Strapped on the back: +1 AC against attacks from behind (no Specialization bonus). 1 stone." },
+  { k: "heater", n: "Heater Shield", w: 6, d: "A heart-shaped shield 2' across and 3' tall. In hand: +1 AC (dismounted, except when vulnerable; mounted, to self or mount, alternating each move). Strapped on the back: +1 AC against attacks from behind (no Specialization bonus). 1 stone." },
+  { k: "kite", n: "Kite Shield", w: 12, d: "A leaf- or almond-shaped cavalry shield. Dismounted: +1 AC but 2 stone of encumbrance. Mounted: +1 AC to <em>both</em> rider and mount, 1 stone each. Cannot be strapped on the back. Does not protect a vulnerable character or mount." },
+  { k: "phalanx", n: "Phalanx Shield", w: 6, d: "A large curved dipylon, figure-eight, rectangular, or round shield. Dismounted only: +1 AC, 1 stone. Counts as a shield for the <strong>Defend</strong> action. Cannot be strapped on the back. Does not protect a vulnerable character." },
+];
+
+const SAMPLE_ITEMS = [
+  ...SHIELD_VARIANTS.map((s) => ({
+    name: s.n,
+    type: "armor",
+    img: "icons/equipment/shield/heater-steel-worn.webp",
+    system: { cost: 10, weight6: s.w, aac: { value: 1 }, type: "shield", description: `<p>${s.d}</p><p><em>Judges Journal optional shield rules (pp. 407–408). Enable the shield-variant overlay to apply the type-specific rules; otherwise it behaves as a standard +1 AC shield.</em></p>` },
+    flags: { shieldVariant: s.k, strap: "hand" },
+  })),
+  {
+    name: "Masterwork Sword (+1 attack)",
+    type: "weapon",
+    img: "icons/weapons/swords/sword-guard-steel.webp",
+    system: { cost: 90, weight6: 1, damage: "1d6", bonus: 1, melee: true, missile: false, description: "<p>A masterwork sword: +1 to attack throws (+80gp over the base 10gp). It does not let you hit monsters only harmed by magic.</p><p><em>Revised Rulebook p. 159. Masterwork and magic bonuses do not stack — enchanting a weapon makes it masterwork automatically.</em></p>" },
+    flags: { size: "medium", damageType: "slashing", masterwork: { toHit: 1 } },
+  },
+  {
+    name: "Masterwork Plate Armour (+1 AC)",
+    type: "armor",
+    img: "icons/equipment/chest/breastplate-layered-steel.webp",
+    system: { cost: 710, weight6: 36, aac: { value: 7 }, type: "heavy", description: "<p>Masterwork plate: AC 7 at the normal 6 stone weight (+650gp over the base 60gp).</p><p><em>Revised Rulebook p. 159. The cheaper +80gp masterwork instead sheds one stone of weight at normal AC.</em></p>" },
+    flags: { masterwork: { ac: 1 } },
+  },
+  {
+    name: "Tooth-Breaker (named war hammer)",
+    type: "weapon",
+    img: "icons/weapons/hammers/hammer-war-spiked.webp",
+    system: { cost: 0, weight6: 1, damage: "1d6", bonus: 1, melee: true, missile: false, description: "<p>A rune-carved war hammer. Its finder named it <em>Tooth-Breaker</em>, unlocking one bonus category; each level of experience earned while wielding it unlocks another point, until its full power is reached. Speaking its true name would grant all its powers at once.</p><p><em>Judges Journal naming rules (p. 399). Enable the named-item overlay to track unlocking by level.</em></p>" },
+    flags: { size: "small", damageType: "bludgeoning", named: { trueName: "Fist of Iron", unlocked: 1, max: 3 } },
+  },
+];
+
+function sampleDoc(s, i) {
+  const id = `acksEqSamp${String(i + 1).padStart(6, "0")}`; // 16 chars
+  return {
+    _id: id,
+    _key: `!items!${id}`,
+    name: s.name,
+    type: s.type,
+    img: s.img,
+    system: { _schemaVersion: 3, ...s.system },
+    effects: [],
+    flags: { [MODULE_ID]: { example: true, ...s.flags } },
+    ownership: { default: 0 },
+    sort: (i + 1) * 100,
+    _stats: { ...STATS },
+  };
+}
+
 export function buildSamples() {
-  return [];
+  return SAMPLE_ITEMS.map(sampleDoc);
+}
+
+/* -------------------------------------------- */
+/*  Sample actors (demonstrate the automation)  */
+/* -------------------------------------------- */
+
+// Pre-wired characters so the module can be seen working immediately: each
+// carries the proficiency profile flags, the proficiency items (with their
+// effect markers) and an equipped loadout that exercises one rule.
+
+const scores = (str, dex, con = 10, int = 10, wis = 10, cha = 10) => ({
+  str: { value: str }, dex: { value: dex }, con: { value: con },
+  int: { value: int }, wis: { value: wis }, cha: { value: cha },
+});
+
+const gearWeapon = (name, damage, over = {}) => ({
+  name,
+  type: "weapon", img: "icons/weapons/swords/sword-guard-steel.webp",
+  system: { damage, melee: true, missile: false, equipped: true, weight6: 1, cost: 10, bonus: 0, ...over },
+});
+const gearArmour = (name, type, aac, w) => ({
+  name,
+  type: "armor", img: "icons/equipment/chest/breastplate-layered-steel.webp",
+  system: { type, aac: { value: aac }, equipped: true, weight6: w, cost: 10 },
+});
+
+const SAMPLE_ACTORS = [
+  {
+    name: "Sample: Sword & Board Fighter",
+    img: "icons/environment/people/commoner.webp",
+    bio: "Demonstrates the <strong>Weapon &amp; Shield</strong> fighting style: the shield gives +1 AC and Fighting Style Specialization another +1, for AC 2 above the armour — applied automatically through the loadout effect. Try equipping a second one-handed weapon: the hand budget (2) is exceeded and the module warns and auto-resolves.",
+    flags: { styles: "single,missile,weaponShield,twoHanded", weaponProficiency: "all", armorMax: "heavy" },
+    level: 3, scores: scores(13, 11, 12),
+    profs: ["Fighting Style Specialization (Weapon & Shield)"],
+    gear: [gearWeapon("Sword", "1d6"), gearArmour("Shield", "shield", 1, 6), gearArmour("Chain Mail Armor", "medium", 4, 24)],
+  },
+  {
+    name: "Sample: Two-Handed Barbarian",
+    img: "icons/environment/people/commoner.webp",
+    bio: "Demonstrates the <strong>Two-Handed</strong> fighting style: a two-handed sword uses both hands, and Fighting Style Specialization adds +1 damage. Swap in a plain Sword (medium) and the module wields it two-handed for 1d8 instead of 1d6.",
+    flags: { styles: "single,missile,twoHanded", weaponProficiency: "all", armorMax: "medium" },
+    level: 3, scores: scores(16, 10, 14),
+    profs: ["Fighting Style Specialization (Two-Handed Weapon)", "Combat Ferocity"],
+    gear: [gearWeapon("Two-Handed Sword", "1d10"), gearArmour("Leather Armor", "light", 2, 12)],
+  },
+  {
+    name: "Sample: Dual-Wield Thief",
+    img: "icons/environment/people/commoner.webp",
+    bio: "Demonstrates the <strong>Dual Weapon</strong> style (+1 to melee attack throws for the second weapon, +1 more from Specialization) and <strong>Weapon Finesse</strong> (DEX replaces STR on the attack throw). In leather and without a shield, the armour-gated thief skills (Backstabbing, Hiding, Pickpocketing, Sneaking) remain available — equip a shield and the module flags them as blocked.",
+    flags: { styles: "single,missile,dual", weaponProficiency: "swordDagger", armorMax: "light" },
+    level: 3, scores: scores(9, 16, 11),
+    profs: ["Fighting Style Specialization (Dual Weapon)", "Weapon Finesse"],
+    gear: [gearWeapon("Short Sword", "1d6"), gearWeapon("Dagger", "1d4"), gearArmour("Leather Armor", "light", 2, 12)],
+  },
+  {
+    name: "Sample: Mage (Restricted Weapons)",
+    img: "icons/environment/people/commoner.webp",
+    bio: "Demonstrates <strong>non-proficiency</strong>. The mage is proficient only with club, dagger, dart, and staff, and wears no armour. The Staff attacks normally; the Sword is equipped but untrained, so attacking with it takes the RAW −1 penalty (shown in the chat card's total) and gains no fighting-style benefit. The armour cap is <em>unarmored</em>, so wearing the leather is flagged as beyond proficiency.",
+    flags: { styles: "single,missile", weaponProficiency: "club,dagger,dart,staff", armorMax: "unarmored" },
+    level: 3, scores: scores(8, 12, 10, 16),
+    profs: [],
+    gear: [gearWeapon("Staff", "1d4"), gearWeapon("Sword", "1d6")],
+  },
+];
+
+/** Embedded copy of a proficiency item, keyed under its owning actor. */
+function embeddedProficiency(actorId, profName, seq) {
+  const p = PROFS.find((x) => x.n === profName);
+  if (!p) throw new Error(`sample actor references unknown proficiency: ${profName}`);
+  const id = `acksEqAP${String(seq).padStart(8, "0")}`;
+  const effId = `acksEqAE${String(seq).padStart(8, "0")}`;
+  const hasMarkers = Object.keys(p.m).length > 0;
+  const effect = hasMarkers ? effectDoc(id, effId, p.n, p.m) : null;
+  if (effect) effect._key = `!actors.items.effects!${actorId}.${id}.${effId}`;
+  return {
+    _id: id,
+    _key: `!actors.items!${actorId}.${id}`,
+    name: p.n,
+    type: "ability",
+    img: BOOK,
+    system: {
+      proficiencytype: p.t, favorite: false, pattern: "white", requirements: p.r ?? "",
+      roll: "", rollType: "above", rollTarget: 0, blindroll: false,
+      description: `<p>${p.d}</p>`, save: "", _schemaVersion: 3,
+    },
+    effects: effect ? [effect] : [],
+    flags: { [MODULE_ID]: { example: true } },
+    ownership: { default: 0 },
+    sort: 0,
+    _stats: { ...STATS },
+  };
+}
+
+/** Embedded copy of a gear item, keyed under its owning actor. */
+function embeddedGear(actorId, g, name, seq) {
+  const id = `acksEqAG${String(seq).padStart(8, "0")}`;
+  return {
+    _id: id,
+    _key: `!actors.items!${actorId}.${id}`,
+    name,
+    type: g.type,
+    img: g.img,
+    system: { _schemaVersion: 3, ...g.system },
+    effects: [],
+    flags: { [MODULE_ID]: { example: true } },
+    ownership: { default: 0 },
+    sort: 0,
+    _stats: { ...STATS },
+  };
+}
+
+function actorDoc(a, i) {
+  const id = `acksEqActor${String(i + 1).padStart(5, "0")}`; // 16 chars
+  let seq = i * 100;
+  const items = [
+    ...a.profs.map((p) => embeddedProficiency(id, p, ++seq)),
+    ...a.gear.map((g) => embeddedGear(id, g, g.name, ++seq)),
+  ];
+  return {
+    _id: id,
+    _key: `!actors!${id}`,
+    name: a.name,
+    type: "character",
+    img: a.img,
+    system: {
+      _schemaVersion: 3,
+      scores: a.scores,
+      details: { level: a.level, class: "Sample", biography: `<p>${a.bio}</p>` },
+      hp: { value: 12, max: 12, hd: "1d8" },
+      config: { movementAuto: true },
+    },
+    items,
+    effects: [],
+    prototypeToken: { name: a.name, actorLink: false },
+    flags: { [MODULE_ID]: { example: true, ...a.flags } },
+    ownership: { default: 0 },
+    sort: (i + 1) * 100,
+    _stats: { ...STATS },
+  };
+}
+
+export function buildActors() {
+  return SAMPLE_ACTORS.map(actorDoc);
 }
 
 export { MODULE_ID, STATS };
@@ -292,5 +499,6 @@ export { MODULE_ID, STATS };
 export const packs = {
   "equipment-proficiencies": buildProficiencies,
   "equipment-samples": buildSamples,
+  "equipment-actors": buildActors,
   macros: buildMacros,
 };

@@ -55,8 +55,16 @@ npm run validate     # check pack sources
 npm run build:packs  # compile compendia to LevelDB
 ```
 
-Status: **Phases 1–4 complete** (loadout model, equip-limit enforcement, loadout
-effect, proficiency/skill enforcement, 42-item proficiencies compendium,
-libWrapper roll integration, Paper Doll integration + fallback, 4 support
-macros). Phase 5 (RAW overlays, sample equipment + actors) in progress; a full
-RAW equipment import is a separate effort.
+## Compendiums
+
+| Pack | Contents |
+| --- | --- |
+| **Equipment & Combat Proficiencies** | 42 effect-carrying `ability` items — Fighting Style Specialization ×5, Weapon Focus ×6, Martial Training ×7, Combat Trickery ×7, Weapon Finesse, Precise Shooting, Armour Training, slayers, and more. Drag onto a character and the automation follows. |
+| **Equipment Samples** | Content core doesn't ship: the six JJ shield variants, masterwork exemplars, and a named magic weapon. Ordinary RAW gear stays in core's `acks-all-equipment` — the *Annotate Weapons* macro upgrades those in place. |
+| **Sample Characters** | Four pre-wired demo characters (sword & board, two-handed, dual-wield thief, restricted mage), each demonstrating one rule end-to-end. |
+| **Equipment Macros** | Loadout Inspector, Annotate Weapons, Configure Proficiencies, Draw / Sheathe. |
+
+Status: **Phases 1–5a complete** (loadout model, equip-limit enforcement, loadout
+effect, proficiency/skill enforcement, libWrapper roll integration, Paper Doll
+integration + fallback, and all four compendiums). Phase 5b (RAW optional-rule
+overlays) in progress; a full RAW equipment import is a separate effort.

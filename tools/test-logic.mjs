@@ -36,7 +36,7 @@ const { classifyWeapon, handCost } = await import(new URL("profiles.mjs", S));
 const { getLoadout, VIOLATION } = await import(new URL("loadout.mjs", S));
 const { buildLoadoutChanges } = await import(new URL("effects.mjs", S));
 const { weaponProficiency, isWeaponProficient, armorMax, isArmorProficient, thiefSkillsGated, swashbucklingAC } = await import(new URL("proficiency.mjs", S));
-const { buildProficiencies } = await import(new URL("../tools/pack-data.mjs", import.meta.url));
+const { buildProficiencies, buildSamples, buildActors } = await import(new URL("../tools/pack-data.mjs", import.meta.url));
 const { computeAttackMods } = await import(new URL("roll-wrap.mjs", S));
 
 const weapon = (name, over = {}) => ({
@@ -211,5 +211,31 @@ check("BODY slot: armour suit only (no helmet, no shield)", fBody(pdPlate) && !f
 check("HEAD slot: helmets only", fHead(pdHelm) && !fHead(pdPlate));
 check("hand slots: weapons + shields only", fHand(pdSword) && fHand(pdShield) && !fHand(pdRope) && !fHand(pdPlate));
 check("both hand slots share the hand filter", slotFilter("BOTTOM_LEFT_MAIN", "MAIN_LEFT") === slotFilter("BOTTOM_RIGHT_MAIN", "MAIN_RIGHT"));
+
+// --- Phase 5a: sample equipment + actors compendiums -------------------------
+const samples = buildSamples();
+check("samples build (6 shield variants + masterwork + named)", samples.length === 9);
+check("every shield variant is a shield armour item with a variant flag", samples.filter((d) => d.flags["acks-equipment"].shieldVariant).every((d) => d.type === "armor" && d.system.type === "shield" && d.system.aac.value === 1));
+check("sample ids 16-char + _key matches", samples.every((d) => ID.test(d._id) && d._key === `!items!${d._id}`));
+
+const actors = buildActors();
+check("4 sample characters build", actors.length === 4 && actors.every((d) => d.type === "character"));
+check("actor ids 16-char + !actors! key", actors.every((d) => ID.test(d._id) && d._key === `!actors!${d._id}`));
+// Embedded docs are first-class LevelDB entries: every id must be 16 chars and
+// every _key must be scoped to its parent, or compilePack throws / Foundry
+// mis-loads. Verified against the real compiled pack; asserted here so it stays.
+const allItems = actors.flatMap((a) => a.items.map((i) => ({ a, i })));
+check("embedded item keys scoped to their actor", allItems.every(({ a, i }) => ID.test(i._id) && i._key === `!actors.items!${a._id}.${i._id}`));
+const allEffects = allItems.flatMap(({ a, i }) => (i.effects ?? []).map((e) => ({ a, i, e })));
+check("embedded effect keys scoped to actor+item", allEffects.length > 0 && allEffects.every(({ a, i, e }) => ID.test(e._id) && e._key === `!actors.items.effects!${a._id}.${i._id}.${e._id}`));
+check("embedded ids unique within each actor", actors.every((a) => new Set(a.items.map((i) => i._id)).size === a.items.length));
+
+// The samples must actually demonstrate the automation they claim.
+const swordBoard = actors.find((a) => a.name.includes("Sword & Board"));
+check("sword&board carries the W&S spec marker + equipped shield", swordBoard.items.some((i) => (i.effects ?? []).some((e) => e.changes.some((c) => c.value === "weaponShield:spec"))) && swordBoard.items.some((i) => i.system.type === "shield" && i.system.equipped));
+check("sword&board is trained in weaponShield", swordBoard.flags["acks-equipment"].styles.includes("weaponShield"));
+const mage = actors.find((a) => a.name.includes("Mage"));
+check("mage's sword is outside its weapon proficiency (demos the −1)", !mage.flags["acks-equipment"].weaponProficiency.includes("sword") && mage.items.some((i) => i.name === "Sword" && i.system.equipped));
+check("every sample gear item has a name", allItems.every(({ i }) => typeof i.name === "string" && i.name.length > 0));
 
 console.log(`test-logic: all ${pass} checks passed`);

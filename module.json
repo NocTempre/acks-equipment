@@ -2,7 +2,7 @@
   "id": "acks-equipment",
   "title": "ACKS II — Equipment & Fighting Styles",
   "description": "Exhaustive RAW equipment-rule automation for the ACKS II system: enforces equippable limits (hands, one worn armour, shields), fighting styles, weapon/armour/thief-skill proficiency requirements, and draw/sheath action economy. Injects fighting-style and proficiency modifiers into attack, damage, AC, and initiative. Optional RAW overlays for shield variants, masterwork, combat maneuvers, mounted saves, and item loss. Integrates theripper93's Paper Doll with a max-per-type fallback. Ships sample proficiencies, equipment, and support macros.",
-  "version": "0.4.0",
+  "version": "0.5.0",
   "socket": true,
   "compatibility": {
     "minimum": "14",
@@ -32,6 +32,28 @@
       "label": "ACKS Equipment & Combat Proficiencies",
       "path": "packs/equipment-proficiencies",
       "type": "Item",
+      "system": "acks",
+      "ownership": {
+        "PLAYER": "OBSERVER",
+        "ASSISTANT": "OWNER"
+      }
+    },
+    {
+      "name": "equipment-samples",
+      "label": "ACKS Equipment Samples (Shield Variants, Masterwork, Named)",
+      "path": "packs/equipment-samples",
+      "type": "Item",
+      "system": "acks",
+      "ownership": {
+        "PLAYER": "OBSERVER",
+        "ASSISTANT": "OWNER"
+      }
+    },
+    {
+      "name": "equipment-actors",
+      "label": "ACKS Equipment Sample Characters",
+      "path": "packs/equipment-actors",
+      "type": "Actor",
       "system": "acks",
       "ownership": {
         "PLAYER": "OBSERVER",
