@@ -11,6 +11,7 @@ import { classifyWeapon, handCost, inferStyle, canOneHand } from "./profiles.mjs
 import { collectStringFlags, sumEffectModifiers } from "./effects.mjs";
 import { EFFECT_DOMAINS } from "./constants.mjs";
 import { weaponProficiency, isWeaponProficient, armorMax, isArmorProficient, thiefSkillsGated, swashbucklingAC } from "./proficiency.mjs";
+import { occupiesHand } from "./overlays/shield-variants.mjs";
 
 /** Violation type keys (for i18n + auto-resolve). */
 export const VIOLATION = Object.freeze({
@@ -100,12 +101,14 @@ export function getLoadout(actor, opts = {}) {
     };
   });
 
-  const shieldHands = shields.length; // 1 hand each
-  let handsUsed = weapons.reduce((n, w) => n + w.handsMin, 0) + shieldHands;
+  // Only a shield carried IN HAND costs a hand; a strapped one (JJ variant
+  // overlay) rides the back or front and leaves both hands free.
+  const handShields = shields.filter(occupiesHand);
+  let handsUsed = weapons.reduce((n, w) => n + w.handsMin, 0) + handShields.length;
 
-  // A lone medium/large melee weapon with spare hands and no shield is wielded
-  // two-handed (RAW 1d8/1d10). Mark it so damage + style reflect that.
-  if (weapons.length === 1 && !shields.length && weapons[0].melee) {
+  // A lone medium/large melee weapon with spare hands and no shield in hand is
+  // wielded two-handed (RAW 1d8/1d10). Mark it so damage + style reflect that.
+  if (weapons.length === 1 && !handShields.length && weapons[0].melee) {
     const w = weapons[0];
     const twoH = handCost(w.profile, { twoHanded: true });
     if (twoH === 2 && budget >= 2) {
@@ -114,7 +117,7 @@ export function getLoadout(actor, opts = {}) {
     }
   }
 
-  const hasShield = shields.length > 0;
+  const hasShield = handShields.length > 0; // only a shield in hand forms Weapon & Shield
   const overrideStyle = actor.getFlag?.(MODULE_ID, ACTOR_FLAGS.ACTIVE_STYLE) ?? null;
   const activeStyle = overrideStyle ?? inferStyle(weapons, hasShield);
 
@@ -176,7 +179,8 @@ export function getLoadout(actor, opts = {}) {
     armorMax: amax,
     extraArmor: suits.slice(0, -1),
     shields,
-    shield: shields[0] ?? null,
+    handShields,
+    shield: handShields[0] ?? shields[0] ?? null,
     helmet: helmets[0] ?? null,
     hasHelmet: helmets.length > 0,
     activeStyle,

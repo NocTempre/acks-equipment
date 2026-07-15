@@ -8,8 +8,13 @@
  */
 import assert from "node:assert";
 
+// Overlay toggles are read through game.settings; tests flip this to prove the
+// overlay is inert when disabled and correct when enabled.
+const SETTINGS_STATE = { overlayShieldVariants: false };
 globalThis.game = {
-  settings: { get: (_m, k) => (k === "defaultHandBudget" ? 2 : k === "enforceMode" ? "resolve" : undefined) },
+  settings: {
+    get: (_m, k) => (k === "defaultHandBudget" ? 2 : k === "enforceMode" ? "resolve" : SETTINGS_STATE[k]),
+  },
   i18n: { has: () => false, localize: (x) => x, format: (k) => k },
   modules: { get: () => ({ active: false }) },
   users: { activeGM: null },
@@ -237,5 +242,50 @@ check("sword&board is trained in weaponShield", swordBoard.flags["acks-equipment
 const mage = actors.find((a) => a.name.includes("Mage"));
 check("mage's sword is outside its weapon proficiency (demos the −1)", !mage.flags["acks-equipment"].weaponProficiency.includes("sword") && mage.items.some((i) => i.name === "Sword" && i.system.equipped));
 check("every sample gear item has a name", allItems.every(({ i }) => typeof i.name === "string" && i.name.length > 0));
+
+// --- Phase 5b: JJ shield-variant overlay -------------------------------------
+const shieldItem = (name, variant, strap = "hand") =>
+  armor(name, "shield", { ac: 1, id: name.replace(/\W/g, ""), flags: { shieldVariant: variant, strap } });
+const wsActor = (items, spec = true) =>
+  actor(items, {
+    flags: { styles: "weaponShield" },
+    effects: spec ? [marker("styleProficient", "weaponShield:spec")] : [],
+  });
+
+// Overlay OFF: a buckler behaves exactly like a standard shield (core's +1),
+// no correction — a disabled toggle must change nothing.
+SETTINGS_STATE.overlayShieldVariants = false;
+let lo2 = getLoadout(wsActor([weapon("Sword", { melee: true, id: "s1" }), shieldItem("Buckler", "buckler")], false));
+let ch2 = buildLoadoutChanges(wsActor([], false), lo2);
+check("overlay off → no shield AC correction", !ch2.some((c) => c.key === "system.aac.mod" && Number(c.value) < 0));
+check("overlay off → strapped shield still costs a hand", lo2.handsUsed === 2);
+
+SETTINGS_STATE.overlayShieldVariants = true;
+// Buckler WITHOUT Weapon & Shield Specialization grants nothing → cancel core's +1.
+const noSpec = wsActor([weapon("Sword", { melee: true, id: "s2" }), shieldItem("Buckler", "buckler")], false);
+lo2 = getLoadout(noSpec);
+ch2 = buildLoadoutChanges(noSpec, lo2);
+const acDelta = ch2.filter((c) => c.key === "system.aac.mod").reduce((n, c) => n + Number(c.value), 0);
+check("buckler without spec → −1 cancels core's shield AC", acDelta === -1);
+// Buckler WITH Specialization: core's +1 stands, plus the spec's own +1.
+const withSpec = wsActor([weapon("Sword", { melee: true, id: "s3" }), shieldItem("Buckler", "buckler")], true);
+const acDelta2 = buildLoadoutChanges(withSpec, getLoadout(withSpec)).filter((c) => c.key === "system.aac.mod").reduce((n, c) => n + Number(c.value), 0);
+check("buckler with spec → +1 (spec), core's shield AC kept", acDelta2 === 1);
+
+// A shield strapped on the BACK costs no hand, forms no Weapon & Shield style,
+// and must not raise ordinary AC.
+const backAct = wsActor([weapon("Sword", { melee: true, id: "s4" }), shieldItem("Auxiliary Shield", "auxiliary", "back")], true);
+const backLo = getLoadout(backAct);
+check("back-strapped shield costs no hand", backLo.handShields.length === 0);
+check("back-strapped shield → lone sword still wielded two-handed", backLo.weapons[0].wieldTwoHanded === true);
+check("back-strapped shield → style is not weaponShield", backLo.activeStyle !== "weaponShield");
+const backAC = buildLoadoutChanges(backAct, backLo).filter((c) => c.key === "system.aac.mod").reduce((n, c) => n + Number(c.value), 0);
+check("back-strapped shield → ordinary AC cancelled (rear-only is situational)", backAC === -1);
+
+// A phalanx shield in hand behaves normally (+1 core, +1 spec).
+const phal = wsActor([weapon("Sword", { melee: true, id: "s5" }), shieldItem("Phalanx Shield", "phalanx")], true);
+const phalLo = getLoadout(phal);
+check("phalanx in hand → weaponShield style, costs a hand", phalLo.activeStyle === "weaponShield" && phalLo.handsUsed === 2);
+SETTINGS_STATE.overlayShieldVariants = false; // leave global state clean
 
 console.log(`test-logic: all ${pass} checks passed`);

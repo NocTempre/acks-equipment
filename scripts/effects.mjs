@@ -13,6 +13,7 @@
  */
 import { EFFECT_PREFIX, MODULE_ID, EFFECT_DOMAINS, LOADOUT_EFFECT_NAME, LOADOUT_EFFECT_FLAG } from "./constants.mjs";
 import { STYLE_SPEC_BONUS, STYLE, DUAL_WIELD_ATTACK_BONUS } from "./config.mjs";
+import { shieldACCorrection, specApplies } from "./overlays/shield-variants.mjs";
 
 /** All active effects on the actor, tolerant of Foundry version differences. */
 function appliedEffects(actor) {
@@ -126,7 +127,9 @@ export function buildLoadoutChanges(actor, loadout) {
     if (kind === "spec") spec.add(style);
   }
   // spec keys come from collectStringFlags lowercased; activeStyle is camelCase.
-  if (loadout.activeStyle && spec.has(loadout.activeStyle.toLowerCase())) {
+  // specApplies() withholds the Weapon & Shield bonus when the JJ overlay says
+  // the shield can't take it (strapped on the back/front rather than in hand).
+  if (loadout.activeStyle && spec.has(loadout.activeStyle.toLowerCase()) && specApplies(loadout)) {
     const bonus = STYLE_SPEC_BONUS[loadout.activeStyle] ?? {};
     add("system.aac.mod", bonus.ac);
     add("system.initiative.mod", bonus.init);
@@ -149,6 +152,11 @@ export function buildLoadoutChanges(actor, loadout) {
 
   // Conditional AC (Swashbuckling / Blade-Dancing) computed in the loadout.
   add("system.aac.mod", loadout.condAC ?? 0);
+
+  // JJ shield-variant overlay: core's computeAC adds any equipped shield's AC
+  // unconditionally. Where RAW grants none (a buckler without Specialization, or
+  // a shield strapped on the back), cancel it rather than fight core.
+  add("system.aac.mod", shieldACCorrection(loadout, spec.has(STYLE.WEAPON_SHIELD.toLowerCase())));
 
   return changes;
 }
