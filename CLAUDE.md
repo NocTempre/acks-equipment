@@ -47,6 +47,10 @@ build/release plumbing.
   `compatibility.minimum` (lib-wrapper for wrapping, socketlib for GM-routed
   writes).
 - Declare a pack in `module.json` only once it has content.
+- Namespacing (validate-enforced): globals/custom hooks/HB helpers start with
+  the camelCased module id; top-level pack `_id`s start with the
+  `flags["acks-equipment"].idPrefix` key; lang keys with `ACKS-EQUIPMENT.`;
+  CSS classes with `acks-equipment-`.
 - Design doctrine: **reuse → extend → enhance → invent** — reuse core system
   documents; extend only via `flags["acks-equipment"]`; enhance with alternate
   sheets/wrappers; invent nothing the system provides (see docs/MODEL.md).

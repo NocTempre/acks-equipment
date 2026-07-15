@@ -22,7 +22,7 @@
  * fires no pre-roll hook. If the system ever exposes
  * `acks.preRollAttack(actor, item, parts, ctx)`, this file can be deleted and
  * the same modifiers contributed through it. We fire our own
- * `acks-equipment.preRollAttack` with the computed breakdown in the meantime.
+ * `acksEquipment.preRollAttack` with the computed breakdown in the meantime.
  */
 import { MODULE_ID, HOOKS, EFFECT_DOMAINS } from "./constants.mjs";
 import { SIZE } from "./config.mjs";

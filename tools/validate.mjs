@@ -17,6 +17,15 @@
  *      manifest/download point at releases/latest/download.
  *   6. i18n: every "<ID-UPPERCASED>.x" key referenced in scripts/templates/
  *      ruledata exists in lang/en.json (dynamic-suffix tolerant).
+ *   7. Namespacing: identifiers that land in SHARED registries carry the
+ *      module key so nothing collides and every artefact greps back to its
+ *      owner — globalThis exposures and custom hooks start with the
+ *      camelCased module id; Handlebars helpers with that or the declared
+ *      pack-id prefix; lang keys with "<ID-UPPERCASED>." (Foundry-owned
+ *      roots like TYPES.* allowlisted); top-level pack _ids with the
+ *      module.json `flags.<id>.idPrefix` when declared (undeclared = warning,
+ *      e.g. grandfathered random ids); top-level CSS classes warn when
+ *      unprefixed (renames touch templates — fix deliberately).
  *
  * Usage:  npm run validate
  */
@@ -193,5 +202,86 @@ if (module_?.id && fs.existsSync(path.join(ROOT, "lang", "en.json"))) {
   }
 }
 
+/* 7. Namespacing: shared-registry identifiers carry the module key. */
+if (module_?.id) {
+  const id = module_.id;
+  const camelNs = id.replace(/-([a-z0-9])/g, (_, c) => c.toUpperCase());
+  const idPrefix = module_.flags?.[id]?.idPrefix;
+  const warn = (file, message) => console.warn(`WARN ${file}: ${message}`);
+
+  // 7a. lang keys are module-prefixed (Foundry-owned roots allowlisted).
+  const FOUNDRY_LANG_ROOTS = ["TYPES"];
+  if (fs.existsSync(path.join(ROOT, "lang", "en.json"))) {
+    const upper = id.toUpperCase();
+    const lang = readJson("lang/en.json");
+    for (const key of Object.keys(lang)) {
+      const ok =
+        key === upper || key.startsWith(`${upper}.`) ||
+        FOUNDRY_LANG_ROOTS.some((root) => key === root || key.startsWith(`${root}.`));
+      if (!ok) fail("lang/en.json", `key "${key}" is not prefixed "${upper}." (Foundry-owned roots: ${FOUNDRY_LANG_ROOTS.join(", ")})`);
+    }
+  }
+
+  // 7b. top-level pack _ids start with the declared idPrefix.
+  if (fs.existsSync(sourceRoot)) {
+    if (!idPrefix) {
+      warn("module.json", `no flags["${id}"].idPrefix declared — pack _ids are unchecked (declare one for new packs; grandfathered random ids stay undeclared)`);
+    } else {
+      walk(sourceRoot, (full) => {
+        if (!full.endsWith(".json")) return;
+        let doc;
+        try {
+          doc = JSON.parse(fs.readFileSync(full, "utf8"));
+        } catch {
+          return; // JSON validity already reported in section 3/4
+        }
+        if (doc._id !== undefined && !String(doc._id).startsWith(idPrefix)) {
+          fail(rel(full), `_id "${doc._id}" does not start with declared idPrefix "${idPrefix}"`);
+        }
+      });
+    }
+  }
+
+  // 7c. runtime registrations in scripts/: globals, custom hooks, HB helpers.
+  walk(path.join(ROOT, "scripts"), (full) => {
+    if (!full.endsWith(".mjs")) return;
+    const text = fs.readFileSync(full, "utf8");
+    for (const m of text.matchAll(/globalThis\.([A-Za-z_$][\w$]*)\s*(?:\?\?=|\|\|=|=(?!=))/g)) {
+      if (!m[1].startsWith(camelNs)) fail(rel(full), `globalThis.${m[1]} must start with "${camelNs}"`);
+    }
+    // Accepted namespaced forms: camelCase ("acksInfluenceFoo"), id-dot
+    // ("acks-influence.foo"), or the interpolated source form `${MODULE_ID}.foo`
+    // (MODULE_ID is the id by family convention in scripts/constants.mjs).
+    const namespaced = (name) =>
+      name.startsWith(camelNs) || name.startsWith(`${id}.`) || name.startsWith("${MODULE_ID}.");
+    for (const m of text.matchAll(/Hooks\.(?:call|callAll)\(\s*["'`]([^"'`]+)["'`]/g)) {
+      if (namespaced(m[1])) continue;
+      if (/^acks/i.test(m[1])) warn(rel(full), `hook "${m[1]}" fires under a foreign acks-* namespace — fine only if it's a deliberate cross-module call`);
+      else fail(rel(full), `custom hook "${m[1]}" must start with "${camelNs}" or "${id}."`);
+    }
+    for (const m of text.matchAll(/Handlebars\.registerHelper\(\s*["'`]([^"'`]+)["'`]/g)) {
+      if (namespaced(m[1]) || (idPrefix && m[1].startsWith(idPrefix))) continue;
+      if (/^acks/i.test(m[1])) warn(rel(full), `helper "${m[1]}" uses a foreign acks-* namespace`);
+      else fail(rel(full), `Handlebars helper "${m[1]}" must start with "${camelNs}"${idPrefix ? `, "${idPrefix}",` : ""} or "${id}."`);
+    }
+  });
+
+  // 7d. top-level CSS classes should carry the key (warning: renames touch templates).
+  const cssSeen = new Set();
+  walk(path.join(ROOT, "styles"), (full) => {
+    if (!full.endsWith(".css")) return;
+    for (const line of fs.readFileSync(full, "utf8").split("\n")) {
+      const m = /^\s*\.([a-zA-Z][\w-]*)/.exec(line);
+      if (!m) continue;
+      const cls = m[1];
+      const ok = cls.startsWith(id) || cls.startsWith(camelNs) || (idPrefix && cls.startsWith(idPrefix));
+      if (!ok && !cssSeen.has(cls)) {
+        cssSeen.add(cls);
+        warn(rel(full), `top-level class ".${cls}" is not module-prefixed ("${id}-…")`);
+      }
+    }
+  });
+}
+
 if (failed) process.exit(1);
-console.log("validate: scripts, templates, JSON, packs, module.json, and i18n OK");
+console.log("validate: scripts, templates, JSON, packs, module.json, i18n, and namespacing OK");

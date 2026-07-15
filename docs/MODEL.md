@@ -67,10 +67,16 @@ fighting styles), `.weaponProficiency` (`"all"` or CSV of categories/weapon keys
 `classifyWeapon`, `handCost`, `focusGroup`, `weaponKey`, `annotateItem(item)`,
 `refreshLoadout(actor)`, the effect collectors, `config`, `HOOKS`, `VIOLATION`.
 
-Hooks fired: `acks-equipment.loadoutChanged (actor, loadout)`,
-`acks-equipment.equipBlocked (actor, item, {reason, resolution})`,
-`acks-equipment.purchased (actor, item, cost)`. `acks-equipment.preRollAttack`
-is our own pre-roll hook and the name proposed for a future core hook.
+Hooks fired — prefixed with the camelCase namespace `acksEquipment` per
+acks-module-template `docs/TOOLCHAIN.md` §5b (shared registries carry the module
+key): `acksEquipment.loadoutChanged (actor, loadout)`,
+`acksEquipment.equipBlocked (actor, item, {reason, resolution})`,
+`acksEquipment.purchased (actor, item, cost)`, and
+`acksEquipment.preRollAttack (actor, item, mods, ctx)` — our own pre-roll hook,
+and the shape proposed for a future core `acks.preRollAttack`.
+
+Pack document `_id`s carry the short key `acksEq`, declared in `module.json` at
+`flags.acks-equipment.idPrefix` (validator enforces it once declared).
 
 ## 5. Boundaries with sibling modules
 

@@ -95,12 +95,24 @@ export const SETTINGS = Object.freeze({
 /** Enforcement behaviours. */
 export const ENFORCE = Object.freeze({ RESOLVE: "resolve", VETO: "veto", ADVISORY: "advisory" });
 
-/** Custom hooks this module fires (consumable by sibling modules). */
+/**
+ * camelCase namespace for shared registries (globalThis, custom hooks,
+ * Handlebars helpers) — the module id camelCased, per acks-module-template
+ * docs/TOOLCHAIN.md §5b. Derived, never declared.
+ */
+export const NAMESPACE = MODULE_ID.replace(/-([a-z0-9])/g, (_, c) => c.toUpperCase()); // "acksEquipment"
+
+/**
+ * Custom hooks this module fires (consumable by sibling modules).
+ * Named `acksEquipment.*` per the namespacing rule — note the validator's
+ * static check only catches string literals passed to Hooks.call/callAll, so
+ * these constants are on the honour system: keep the NAMESPACE prefix.
+ */
 export const HOOKS = Object.freeze({
-  LOADOUT_CHANGED: `${MODULE_ID}.loadoutChanged`, // (actor, loadout)
-  EQUIP_BLOCKED: `${MODULE_ID}.equipBlocked`, // (actor, item, {reason, resolution})
-  PURCHASED: `${MODULE_ID}.purchased`, // (actor, item, cost)
-  PRE_ROLL_ATTACK: `${MODULE_ID}.preRollAttack`, // (actor, item, parts, ctx) — our own; also the name proposed for core
+  LOADOUT_CHANGED: `${NAMESPACE}.loadoutChanged`, // (actor, loadout)
+  EQUIP_BLOCKED: `${NAMESPACE}.equipBlocked`, // (actor, item, {reason, resolution})
+  PURCHASED: `${NAMESPACE}.purchased`, // (actor, item, cost)
+  PRE_ROLL_ATTACK: `${NAMESPACE}.preRollAttack`, // (actor, item, mods, ctx) — also the name proposed for a core hook
 });
 
 /** The label of the module-managed loadout Active Effect on actors. */

@@ -2,8 +2,13 @@
   "id": "acks-equipment",
   "title": "ACKS II — Equipment & Fighting Styles",
   "description": "Exhaustive RAW equipment-rule automation for the ACKS II system: enforces equippable limits (hands, one worn armour, shields), fighting styles, weapon/armour/thief-skill proficiency requirements, and draw/sheath action economy. Injects fighting-style and proficiency modifiers into attack, damage, AC, and initiative. Optional RAW overlays for shield variants, masterwork, combat maneuvers, mounted saves, and item loss. Integrates theripper93's Paper Doll with a max-per-type fallback. Ships sample proficiencies, equipment, and support macros.",
-  "version": "0.5.0",
+  "version": "0.5.1",
   "socket": true,
+  "flags": {
+    "acks-equipment": {
+      "idPrefix": "acksEq"
+    }
+  },
   "compatibility": {
     "minimum": "14",
     "verified": "14.364"
@@ -109,5 +114,10 @@
   },
   "url": "https://github.com/NocTempre/acks-equipment",
   "manifest": "https://github.com/NocTempre/acks-equipment/releases/latest/download/module.json",
-  "download": "https://github.com/NocTempre/acks-equipment/releases/latest/download/module.zip"
+  "download": "https://github.com/NocTempre/acks-equipment/releases/latest/download/module.zip",
+  "flags": {
+    "acks-equipment": {
+      "idPrefix": "acksEq"
+    }
+  }
 }
