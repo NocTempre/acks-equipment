@@ -1,7 +1,7 @@
 # acks-equipment — Data Model & Integration Contract
 
 How this module stores data, the Active-Effect contract it reads, the API it
-exposes, and where its responsibilities end. Companion to `docs/RULES.md` (the
+exposes, and where its responsibilities end. Companion to `acks-rules/acks-equipment/RULES.md` (the
 RAW source of truth behind the code enums).
 
 ## 1. Design rules

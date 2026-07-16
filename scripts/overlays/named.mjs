@@ -1,6 +1,6 @@
 /* global game */
 /**
- * Overlay: named arms & armour (JJ p. 399; docs/RULES.md §13).
+ * Overlay: named arms & armour (JJ p. 399; acks-rules/acks-equipment/RULES.md §13).
  * Gated by the `overlayNamed` world setting.
  *
  * The name is the MECHANISM, not flavour: "only those who confidently speak the

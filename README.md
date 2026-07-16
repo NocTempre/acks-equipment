@@ -8,7 +8,7 @@ enforces the RAW.
 > Design priority: **reuse → extend → enhance → replace**. The core system is
 > never edited; this module reads core data and writes only its own flags plus
 > one managed Active Effect that targets fields core already sums. See
-> [`docs/MODEL.md`](docs/MODEL.md) for the contract and [`docs/RULES.md`](docs/RULES.md)
+> [`docs/MODEL.md`](docs/MODEL.md) for the contract and the local rules extract (`acks-rules/acks-equipment/RULES.md`)
 > for the rules it implements.
 
 ## Features

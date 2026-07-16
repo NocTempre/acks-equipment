@@ -1,6 +1,6 @@
 /* global game */
 /**
- * Overlay: scavenged equipment (RR p. 160; docs/RULES.md §11).
+ * Overlay: scavenged equipment (RR p. 160; acks-rules/acks-equipment/RULES.md §11).
  * Gated by the `overlayScavenged` world setting.
  *
  * Reuse first: every RAW result is expressible in fields core already has —

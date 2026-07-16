@@ -1,6 +1,6 @@
 /* global game */
 /**
- * Overlay: JJ shield variants (Judges Journal pp. 407–408; docs/RULES.md §4).
+ * Overlay: JJ shield variants (Judges Journal pp. 407–408; acks-rules/acks-equipment/RULES.md §4).
  * Gated by the `overlayShieldVariants` world setting; off → every shield is the
  * standard +1 AC shield core already models.
  *

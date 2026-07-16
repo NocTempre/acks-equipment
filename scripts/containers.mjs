@@ -1,7 +1,7 @@
 /* global game */
 /**
  * Containers — nested inventory with a RAW weight roll-up (RR pp. 142–145, 161;
- * docs/RULES.md §1/§3).
+ * acks-rules/acks-equipment/RULES.md §1/§3).
  *
  * Design note (reuse first). Contents stay REAL items on the actor, flagged with
  * `containedIn`. That means core's computeEncumbrance already counts each item

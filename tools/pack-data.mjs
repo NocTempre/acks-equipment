@@ -437,7 +437,7 @@ export function buildProficiencies() {
 // The JJ Fighting Value selections, broken into the individual chunks the book
 // actually lists — NOT per-class bundles. A class grants some combination of
 // these; drag on the ones its Fighting Value bought. Each carries the effect
-// markers the enforcement engine reads (docs/RULES.md §5/§6).
+// markers the enforcement engine reads (acks-rules/acks-equipment/RULES.md §5/§6).
 
 const TRAINING = [
   // Fighting styles (JJ p. 291). Single + Missile are mandatory for every class.
