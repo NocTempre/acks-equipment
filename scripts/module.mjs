@@ -13,6 +13,7 @@ import { buildApi } from "./api.mjs";
 import { onPreUpdateItem, onUpdateItem, refreshLoadout, primaryResponder } from "./enforce.mjs";
 import { registerRollWrap } from "./roll-wrap.mjs";
 import { registerPaperDoll } from "./paperdoll.mjs";
+import { advanceWieldedOnLevelUp } from "./overlays/named.mjs";
 
 /** True on exactly one client: the active GM responsible for automation. */
 function isPrimaryGM() {
@@ -88,13 +89,33 @@ function onLoadoutItemChange(item) {
 Hooks.on("createItem", onLoadoutItemChange);
 Hooks.on("deleteItem", onLoadoutItemChange);
 
-/* Proficiency/style config lives in actor flags — rebuild when it changes. */
+/* Proficiency/style config lives in actor flags — rebuild when it changes.
+ * A level-up also advances any named item the actor is wielding: RAW counts
+ * levels of experience EARNED while wielding, so it keys off the change itself
+ * rather than the actor's absolute level. */
 Hooks.on("updateActor", (actor, changes) => {
   if (!primaryResponder(actor)) return;
   if (foundry.utils.hasProperty(changes, `flags.${MODULE_ID}`)) {
     refreshLoadout(actor).catch((err) => console.error(`${MODULE_ID} | actor-flag loadout sync failed`, err));
   }
+  if (foundry.utils.hasProperty(changes, "system.details.level")) {
+    advanceNamedOnLevelUp(actor).catch((err) => console.error(`${MODULE_ID} | named-item advancement failed`, err));
+  }
 });
+
+/** Unlock one further rung on each wielded named item (JJ p. 399). */
+async function advanceNamedOnLevelUp(actor) {
+  if (!game.settings.get(MODULE_ID, SETTINGS.OVERLAY_NAMED)) return;
+  const advances = advanceWieldedOnLevelUp(actor);
+  for (const { item, updates } of advances) {
+    await item.update(updates);
+    ui.notifications?.info(
+      game.i18n.has("ACKS-EQUIPMENT.notify.namedAdvanced")
+        ? game.i18n.format("ACKS-EQUIPMENT.notify.namedAdvanced", { item: item.name, name: actor.name })
+        : `${item.name} reveals more of its power to ${actor.name}.`,
+    );
+  }
+}
 
 /* Toggling/editing a proficiency's Active Effect changes the loadout too.
  * Skip our OWN managed loadout effect to avoid a rebuild loop. */

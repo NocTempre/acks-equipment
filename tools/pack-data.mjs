@@ -132,6 +132,69 @@ ChatMessage.create({
 });`,
   },
   {
+    _id: "acksEqNamed0000",
+    name: "Named Arms & Armour",
+    img: "icons/svg/mystery-man.svg",
+    command: `// JJ p. 399 (optional). The NAME is the mechanism: speaking an item's true name
+// grants its full powers at once; an unsure character may guess ONCE and not
+// again until gaining a level; naming it yourself unlocks one rung, then one more
+// per level earned while wielding it, in the order the Judge set.
+const MOD = "acks-equipment";
+const api = game.modules.get(MOD)?.api ?? globalThis.acksEquipment;
+if (!api) { ui.notifications.error("ACKS Equipment is not active."); return; }
+if (!game.settings.get(MOD, "overlayNamed")) { ui.notifications.warn("Enable the 'Named magic items' overlay in module settings first."); return; }
+const N = api.named;
+const actor = canvas.tokens.controlled[0]?.actor ?? game.user.character;
+if (!actor) { ui.notifications.warn("Select a token."); return; }
+const gear = actor.items.filter((i) => ["weapon", "armor"].includes(i.type));
+if (!gear.length) { ui.notifications.warn("No weapons or armour on this character."); return; }
+const opts = gear.map((i) => \`<option value="\${i.id}">\${i.name}\${N.isNamed(i) ? " (named)" : ""}</option>\`).join("");
+const form = await foundry.applications.api.DialogV2.prompt({
+  window: { title: \`Named Arms & Armour — \${actor.name}\` },
+  content: \`<div style="display:grid;gap:.5rem">
+    <label>Item <select name="id" style="width:100%">\${opts}</select></label>
+    <label>Action <select name="act" style="width:100%">
+      <option value="speak">Speak a name (guess the true name)</option>
+      <option value="rename">Name / re-name it yourself</option>
+      <option value="status">Show its current state</option>
+    </select></label>
+    <label>Name spoken or given <input name="spoken" placeholder="e.g. Fist of Iron"></label>
+  </div>\`,
+  ok: { label: "Do it", callback: (_e, btn) => new FormData(btn.form) },
+  rejectClose: false,
+});
+if (!form) return;
+const item = actor.items.get(form.get("id"));
+const act = form.get("act");
+const spoken = (form.get("spoken") ?? "").trim();
+const level = Number(actor.system?.details?.level ?? 1);
+if (act === "status") {
+  const rec = N.namedOf(item);
+  if (!rec) { ui.notifications.info(\`\${item.name} is not a named item.\`); return; }
+  const b = N.unlockedBonuses(item);
+  ui.notifications.info(\`\${item.name}: \${N.unlockedCount(item)}/\${N.ladderOf(item).length} unlocked\${rec.revealed ? " (true name known)" : ""} — +\${b.hit} hit, +\${b.damage} damage, +\${b.ac} AC.\`);
+  return;
+}
+if (!spoken) { ui.notifications.warn("Enter a name."); return; }
+if (act === "rename") {
+  await item.update({ ...N.renameUpdates(item, spoken, level) });
+  await item.update(N.applyUpdates(item));
+  ChatMessage.create({ speaker: ChatMessage.getSpeaker({ actor }), content: \`<p><b>\${actor.name}</b> names the item <b>\${spoken}</b>. One of its powers stirs.</p>\` });
+  return;
+}
+if (!N.isNamed(item)) { ui.notifications.info("That item has no hidden name."); return; }
+if (!N.canGuess(item, actor)) { ui.notifications.warn(\`\${actor.name} has already guessed, and may not guess again until gaining a level.\`); return; }
+const res = N.resolveGuess(item, actor, spoken);
+await item.update(res.updates);
+if (res.correct) await item.update(N.applyUpdates(item));
+ChatMessage.create({
+  speaker: ChatMessage.getSpeaker({ actor }),
+  content: res.correct
+    ? \`<p><b>\${actor.name}</b> speaks the name <b>\${spoken}</b> — and the item answers. Its full powers awaken.</p>\`
+    : \`<p><b>\${actor.name}</b> speaks the name <b>\${spoken}</b>. Nothing happens. No further guess until \${actor.name} gains a level.</p>\`,
+});`,
+  },
+  {
     _id: "acksEqDrawSheath",
     name: "Draw / Sheathe",
     img: "icons/svg/sword.svg",

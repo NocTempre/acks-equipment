@@ -537,4 +537,26 @@ check("a revealed item does not advance (already full)", N.advanceOnLevelUp(hamm
 check("unlocked bonuses map onto core fields", (() => { const u = N.toItemUpdates(hammer({ rec: { unlocked: 6 } }), { bonus: 0, damage: "1d6" }); return u["system.bonus"] === 3 && u["system.damage"] === "1d6+3"; })());
 SETTINGS_STATE.overlayNamed = false;
 
+
+// Applying unlocked bonuses must be IDEMPOTENT: recomputed from the captured
+// mundane base, so repeated level-ups cannot compound (+3 must never become +6).
+SETTINGS_STATE.overlayNamed = true;
+const basedHammer = (unlocked, equipped = true) => ({
+  id: "tb2", name: "Tooth-Breaker", type: "weapon",
+  system: { damage: "1d6+3", bonus: 3, equipped, weight6: 1 }, // already-modified values
+  getFlag: (_m, k) => (k === "named" ? { trueName: "Fist of Iron", ladder: ["damage", "hit", "damage", "hit", "damage", "hit"], unlocked, revealed: false, guesses: {}, base: { bonus: 0, damage: "1d6", aac: 0, weight6: 1 } } : undefined),
+  effects: [],
+});
+const reapplied = N.applyUpdates(basedHammer(6));
+check("re-applying recomputes from base, never compounds", reapplied["system.bonus"] === 3 && reapplied["system.damage"] === "1d6+3");
+check("captureBase records the mundane stats", (() => { const b = N.captureBase({ system: { bonus: 1, damage: "1d8", weight6: 6 } }); return b.bonus === 1 && b.damage === "1d8" && b.weight6 === 6; })());
+check("renameUpdates captures the base on first naming", N.renameUpdates(hammer({ rec: { unlocked: 0 } }), "Orcbiter", 1)["flags.acks-equipment.named.base"] !== undefined);
+
+// A level-up advances only WIELDED named items, one rung, restating bonuses.
+const adv = N.advanceWieldedOnLevelUp({ items: [basedHammer(2)], system: { details: { level: 4 } } });
+check("level-up advances a wielded named item one rung", adv.length === 1 && adv[0].updates["flags.acks-equipment.named.unlocked"] === 3);
+check("advancement restates bonuses from base (3 rungs = +2 dmg, +1 hit)", adv[0].updates["system.damage"] === "1d6+2" && adv[0].updates["system.bonus"] === 1);
+check("an unwielded named item does not advance", N.advanceWieldedOnLevelUp({ items: [basedHammer(2, false)], system: { details: { level: 4 } } }).length === 0);
+SETTINGS_STATE.overlayNamed = false;
+
 console.log(`test-logic: all ${pass} checks passed`);

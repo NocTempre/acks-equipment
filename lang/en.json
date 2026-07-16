@@ -70,6 +70,7 @@
       "autoUnequipped": "Auto-unequipped to keep a legal loadout: {items}.",
       "paperdollConfigured": "Paper Doll configured for ACKS equipment slots (hands, armour, helmet).",
       "namedGuessSpent": "{name} has already guessed this item's name and may not guess again until gaining a level.",
+      "namedAdvanced": "{item} reveals more of its power to {name}.",
       "namedRevealed": "{item} answers to its true name — its full powers awaken."
     }
   }

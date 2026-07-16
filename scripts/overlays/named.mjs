@@ -120,18 +120,69 @@ export function resolveGuess(item, actor, spoken) {
 }
 
 /**
+ * The item's mundane stats, captured once so unlocking can be applied
+ * idempotently: every application recomputes from the BASE rather than adding to
+ * the already-modified value (which would compound on each level-up).
+ */
+export function captureBase(item) {
+  return {
+    bonus: Number(item.system?.bonus ?? 0),
+    damage: String(item.system?.damage ?? "1d6"),
+    aac: Number(item.system?.aac?.value ?? 0),
+    weight6: Number(item.system?.weight6 ?? 0),
+  };
+}
+
+/** The stored base stats, falling back to the item's current values. */
+export function baseOf(item) {
+  return namedOf(item)?.base ?? captureBase(item);
+}
+
+/**
  * Re-name a found item. RAW: naming it grants one point immediately, and the
  * item is thereafter called by that name — so the item document is renamed.
+ * Captures the mundane base stats on first naming.
  */
 export function renameUpdates(item, givenName, wielderLevel) {
   const rec = namedOf(item) ?? {};
-  return {
+  const updates = {
     name: givenName,
     [`flags.${MODULE_ID}.${ITEM_FLAGS.NAMED}.givenName`]: givenName,
     [`flags.${MODULE_ID}.${ITEM_FLAGS.NAMED}.unlocked`]: Math.max(1, Number(rec.unlocked ?? 0)),
     [`flags.${MODULE_ID}.${ITEM_FLAGS.NAMED}.namedAtLevel`]: Number(wielderLevel ?? 1),
     [`flags.${MODULE_ID}.${ITEM_FLAGS.NAMED}.revealed`]: false,
   };
+  if (!rec.base) updates[`flags.${MODULE_ID}.${ITEM_FLAGS.NAMED}.base`] = captureBase(item);
+  return updates;
+}
+
+/**
+ * Everything an item needs written after its unlocked count changes: the core
+ * fields recomputed from the captured base. Idempotent by construction.
+ */
+export function applyUpdates(item) {
+  return toItemUpdates(item, baseOf(item));
+}
+
+/**
+ * Advance every named item the actor currently wields, then restate its bonuses.
+ * RAW counts levels of experience EARNED while wielding, so this is driven by a
+ * level-up rather than the wielder's absolute level.
+ * @returns {{item, updates:object}[]}
+ */
+export function advanceWieldedOnLevelUp(actor) {
+  const out = [];
+  for (const item of actor.items ?? []) {
+    if (!isNamed(item) || !item.system?.equipped) continue;
+    const advance = advanceOnLevelUp(item);
+    if (!advance) continue;
+    // Recompute from base using the POST-advance count.
+    const rec = namedOf(item);
+    const next = { ...rec, unlocked: Number(rec.unlocked ?? 0) + 1 };
+    const preview = { ...item, getFlag: (_m, k) => (k === ITEM_FLAGS.NAMED ? next : item.getFlag?.(_m, k)) };
+    out.push({ item, updates: { ...advance, ...toItemUpdates(preview, baseOf(item)) } });
+  }
+  return out;
 }
 
 /**
