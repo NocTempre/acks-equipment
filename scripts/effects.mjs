@@ -109,14 +109,15 @@ export function collectStringFlags(actor, domain) {
  * @param {import("./loadout.mjs").Loadout} loadout
  */
 export function buildLoadoutChanges(actor, loadout) {
-  // v14 change modes are lowercase string keys of CONST.ACTIVE_EFFECT_CHANGE_TYPES
-  // (the numbers in that enum are default priorities, not mode values). The
-  // module requires Foundry v14+, so the string literal is canonical; using the
-  // deprecated numeric CONST.ACTIVE_EFFECT_MODES would log a compatibility warning.
+  // v14: an AE change carries a string `type` (a key of
+  // CONST.ACTIVE_EFFECT_CHANGE_TYPES; the enum's numbers are default
+  // priorities). The old numeric `mode` survives only as a compatibility shim
+  // whose SETTER does Number(mode) — so writing mode:"add" yields NaN and never
+  // sets type at all. Write `type` directly.
   const ADD = "add";
   const changes = [];
   const add = (key, value) => {
-    if (value) changes.push({ key, mode: ADD, value: String(value), priority: 20 });
+    if (value) changes.push({ key, type: ADD, value: String(value), priority: 20 });
   };
 
   // Fighting Style Specialization — only for the active style, if trained in it.
@@ -163,7 +164,9 @@ export function buildLoadoutChanges(actor, loadout) {
 
 /** Stable hash of an AE changes array for dedupe. */
 function changesHash(changes) {
-  return JSON.stringify(changes.map((c) => [c.key, c.mode, c.value]).sort());
+  // Read `type`, never `mode`: touching the shimmed `mode` getter logs a v14
+  // deprecation warning on every rebuild.
+  return JSON.stringify(changes.map((c) => [c.key, c.type, c.value]).sort());
 }
 
 /** Find the module-managed loadout effect on an actor, if any. */

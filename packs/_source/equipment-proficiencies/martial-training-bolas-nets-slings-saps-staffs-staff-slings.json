@@ -27,7 +27,7 @@
       "changes": [
         {
           "key": "flags.acks-equipment.martialWeapons",
-          "mode": "override",
+          "type": "override",
           "value": "other",
           "priority": 50
         }

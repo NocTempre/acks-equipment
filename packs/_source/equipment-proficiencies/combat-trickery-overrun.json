@@ -27,7 +27,7 @@
       "changes": [
         {
           "key": "flags.acks-equipment.maneuverTrickery",
-          "mode": "override",
+          "type": "override",
           "value": "overrun",
           "priority": 50
         }

@@ -14,6 +14,7 @@ import { planItemLoss, stonesAtRisk, isVulnerable, materialOf } from "./overlays
 import { maneuverMods, MANEUVERS } from "./overlays/maneuvers.mjs";
 import * as named from "./overlays/named.mjs";
 import { clearFromPaperDoll } from "./paperdoll.mjs";
+import { containerReport, contentsOf, contentsWeight6, overCapacity, isContainer, encumbranceDelta6 } from "./containers.mjs";
 import { collectEffectModifiers, sumEffectModifiers, collectStringFlags, hasEffectFlag } from "./effects.mjs";
 import * as CONFIG_DATA from "./config.mjs";
 

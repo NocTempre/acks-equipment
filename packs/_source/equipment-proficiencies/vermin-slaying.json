@@ -27,7 +27,7 @@
       "changes": [
         {
           "key": "flags.acks-equipment.slayer",
-          "mode": "override",
+          "type": "override",
           "value": "vermin:1",
           "priority": 50
         }

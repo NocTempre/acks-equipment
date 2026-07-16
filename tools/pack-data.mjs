@@ -370,7 +370,8 @@ const PROFS = [
 function effectDoc(itemId, effId, name, markers) {
   const changes = Object.entries(markers).map(([domain, value]) => ({
     key: `flags.${MODULE_ID}.${domain}`,
-    mode: "override",
+    type: "override", // v14 string change type; numeric `mode` is a deprecated shim
+
     value: String(value),
     priority: 50,
   }));

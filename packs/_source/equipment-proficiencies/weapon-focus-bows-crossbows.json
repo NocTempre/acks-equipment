@@ -27,7 +27,7 @@
       "changes": [
         {
           "key": "flags.acks-equipment.weaponFocus",
-          "mode": "override",
+          "type": "override",
           "value": "bowscrossbows",
           "priority": 50
         }

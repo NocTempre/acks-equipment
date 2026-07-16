@@ -27,7 +27,7 @@
       "changes": [
         {
           "key": "flags.acks-equipment.armourProficiency",
-          "mode": "override",
+          "type": "override",
           "value": "veryLight",
           "priority": 50
         }

@@ -27,7 +27,7 @@
       "changes": [
         {
           "key": "flags.acks-equipment.styleProficient",
-          "mode": "override",
+          "type": "override",
           "value": "weaponShield",
           "priority": 50
         }

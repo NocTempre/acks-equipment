@@ -27,7 +27,7 @@
       "changes": [
         {
           "key": "flags.acks-equipment.skirmishing",
-          "mode": "override",
+          "type": "override",
           "value": "1",
           "priority": 50
         }

@@ -27,8 +27,9 @@ globalThis.foundry = {
     getProperty: (o, p) => p.split(".").reduce((a, k) => (a == null ? a : a[k]), o),
   },
 };
-// v14: change.mode is a lowercase string key; the enum numbers are default
-// priorities. Make the deprecated numeric getter THROW so any access fails.
+// v14: an AE change carries a string `type` (a key of ACTIVE_EFFECT_CHANGE_TYPES;
+// the enum numbers are default priorities). Numeric `mode` is a deprecated shim —
+// make the getter THROW so any access fails the test.
 globalThis.CONST = {
   ACTIVE_EFFECT_CHANGE_TYPES: { custom: 0, multiply: 10, add: 20, subtract: 20, downgrade: 30, upgrade: 40, override: 50 },
 };
@@ -109,7 +110,7 @@ const specLo = getLoadout(specActor);
 check("spec actor → weaponShield active", specLo.activeStyle === "weaponShield" && specLo.styleProficient);
 const changes = buildLoadoutChanges(specActor, specLo);
 const ac = changes.find((c) => c.key === "system.aac.mod");
-check("W&S spec → +1 aac.mod, string mode 'add'", ac && Number(ac.value) === 1 && ac.mode === "add");
+check("W&S spec → +1 aac.mod with string type 'add'", ac && Number(ac.value) === 1 && ac.type === "add");
 
 // --- Phase 2: proficiency resolution -----------------------------------------
 const swordP = classifyWeapon(weapon("Sword", { melee: true }));
@@ -149,7 +150,7 @@ check("all proficiency ids 16-char alphanumeric + matching _key", profs.every((d
 const ids = new Set(profs.map((d) => d._id));
 check("proficiency ids unique", ids.size === profs.length);
 const changeKeys = profs.flatMap((d) => (d.effects[0]?.changes ?? []).map((c) => c.key));
-check("effect change keys are flags.acks-equipment.* with override mode", changeKeys.length > 0 && changeKeys.every((k) => k.startsWith("flags.acks-equipment.")) && profs.every((d) => (d.effects[0]?.changes ?? []).every((c) => c.mode === "override")));
+check("effect change keys are flags.acks-equipment.* with override type", changeKeys.length > 0 && changeKeys.every((k) => k.startsWith("flags.acks-equipment.")) && profs.every((d) => (d.effects[0]?.changes ?? []).every((c) => c.type === "override")));
 const wsSpec = profs.find((d) => d.name.includes("Weapon & Shield"));
 check("W&S spec item carries styleProficient=weaponShield:spec + freeSwap", wsSpec.effects[0].changes.some((c) => c.key.endsWith("styleProficient") && c.value === "weaponShield:spec") && wsSpec.effects[0].changes.some((c) => c.key.endsWith("freeSwap")));
 
@@ -558,5 +559,30 @@ check("level-up advances a wielded named item one rung", adv.length === 1 && adv
 check("advancement restates bonuses from base (3 rungs = +2 dmg, +1 hit)", adv[0].updates["system.damage"] === "1d6+2" && adv[0].updates["system.bonus"] === 1);
 check("an unwielded named item does not advance", N.advanceWieldedOnLevelUp({ items: [basedHammer(2, false)], system: { details: { level: 4 } } }).length === 0);
 SETTINGS_STATE.overlayNamed = false;
+
+
+// --- buildApi smoke test ------------------------------------------------------
+// v0.9.0-v0.12.0 shipped BROKEN: api.mjs exposed containerReport & co. that it
+// never imported, so buildApi() threw a ReferenceError at init and the whole
+// module died. node --check is syntax-only and nothing here called buildApi, so
+// it sailed through. Actually building the API is the guard.
+globalThis.Hooks = globalThis.Hooks ?? { once: () => {}, on: () => {}, callAll: () => {} };
+const moduleStub = {};
+globalThis.game.modules = { get: (id) => (id === "acks-equipment" ? moduleStub : { active: false }) };
+const { buildApi } = await import(new URL("api.mjs", S));
+const api = buildApi();
+check("buildApi() runs without throwing (every exposed symbol is imported)", !!api);
+check("buildApi exposes it on the module and globalThis", moduleStub.api === api && globalThis.acksEquipment === api);
+for (const fn of ["getLoadout", "containerReport", "contentsOf", "contentsWeight6", "overCapacity", "isContainer", "encumbranceDelta6", "planItemLoss", "maneuverMods", "clearFromPaperDoll", "annotateItem", "refreshLoadout"]) {
+  check(`api.${fn} is defined`, typeof api[fn] === "function");
+}
+check("api.named namespace is present", typeof api.named?.resolveGuess === "function");
+
+// v14 AE changes must carry a string `type`, never the deprecated numeric `mode`
+// shim (whose setter does Number(mode) -> NaN, silently never setting type).
+const typedChanges = buildLoadoutChanges(specActor, specLo);
+check("loadout AE changes use string `type`, not `mode`", typedChanges.every((c) => c.type === "add" && c.mode === undefined));
+const profEffectChanges = buildProficiencies().flatMap((d) => d.effects[0]?.changes ?? []);
+check("pack effect changes use string `type`, not `mode`", profEffectChanges.length > 0 && profEffectChanges.every((c) => c.type === "override" && c.mode === undefined));
 
 console.log(`test-logic: all ${pass} checks passed`);

@@ -27,7 +27,7 @@
       "changes": [
         {
           "key": "flags.acks-equipment.weaponProf",
-          "mode": "override",
+          "type": "override",
           "value": "melee:medium,melee:large",
           "priority": 50
         }

@@ -70,13 +70,13 @@
           "changes": [
             {
               "key": "flags.acks-equipment.styleProficient",
-              "mode": "override",
+              "type": "override",
               "value": "twoHanded:spec",
               "priority": 50
             },
             {
               "key": "flags.acks-equipment.freeSwap",
-              "mode": "override",
+              "type": "override",
               "value": "1",
               "priority": 50
             }
@@ -135,7 +135,7 @@
           "changes": [
             {
               "key": "flags.acks-equipment.maxCleaves",
-              "mode": "override",
+              "type": "override",
               "value": "1",
               "priority": 50
             }

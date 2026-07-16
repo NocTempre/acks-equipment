@@ -27,7 +27,7 @@
       "changes": [
         {
           "key": "flags.acks-equipment.styleProficient",
-          "mode": "override",
+          "type": "override",
           "value": "missile",
           "priority": 50
         }

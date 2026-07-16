@@ -27,13 +27,13 @@
       "changes": [
         {
           "key": "flags.acks-equipment.styleProficient",
-          "mode": "override",
+          "type": "override",
           "value": "single:spec",
           "priority": 50
         },
         {
           "key": "flags.acks-equipment.freeSwap",
-          "mode": "override",
+          "type": "override",
           "value": "1",
           "priority": 50
         }
