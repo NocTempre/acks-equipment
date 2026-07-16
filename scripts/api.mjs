@@ -12,6 +12,8 @@ import { weaponProficiency, isWeaponProficient, armorMax, isArmorProficient, thi
 import { refreshLoadout } from "./enforce.mjs";
 import { planItemLoss, stonesAtRisk, isVulnerable, materialOf } from "./overlays/item-loss.mjs";
 import { maneuverMods, MANEUVERS } from "./overlays/maneuvers.mjs";
+import * as named from "./overlays/named.mjs";
+import { clearFromPaperDoll } from "./paperdoll.mjs";
 import { collectEffectModifiers, sumEffectModifiers, collectStringFlags, hasEffectFlag } from "./effects.mjs";
 import * as CONFIG_DATA from "./config.mjs";
 
@@ -78,6 +80,8 @@ export function buildApi() {
     materialOf,
     maneuverMods,
     MANEUVERS,
+    named, // JJ p.399 named arms & armour: true name, guessing, unlock ladder
+    clearFromPaperDoll,
     // Containers
     containerReport,
     contentsOf,

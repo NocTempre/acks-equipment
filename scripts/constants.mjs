@@ -29,6 +29,8 @@ export const EFFECT_DOMAINS = Object.freeze({
   WEAPON_FOCUS: "weaponFocus", // CSV of Weapon Focus categories
   SLAYER: "slayer", // CSV of "group:bonus" slayer entries (goblin, vermin)
   MARTIAL_WEAPONS: "martialWeapons", // CSV weapon categories added to proficiency
+  WEAPON_PROF: "weaponProf", // CSV grant tokens from class training (JJ p. 290 chunks)
+  ARMOR_PROF: "armourProficiency", // highest armour category granted by class training
   ARMOR_TRAINING: "armorTraining", // integer: armour categories added above class
   MANEUVER_TRICKERY: "maneuverTrickery", // CSV of Combat Trickery maneuvers
   // Boolean-ish domains (presence tested).
@@ -68,6 +70,7 @@ export const ITEM_FLAGS = Object.freeze({
   CONTAINED_IN: "containedIn", // id of the container item this item is stored in
   HARNESS: "harness", // adventurer's harness: ignore 1 stone of ordinary gear
   BOWQUIVER: "bowquiver", // bowquiver: assembly counts as 2 items when loaded
+  NAMED: "named", // {trueName, givenName, ladder[], unlocked, revealed, guesses{}}
   WORN_HAND: "hand", // set by paper-doll normalization: "main" | "off" | "mainOff"
 });
 

@@ -462,4 +462,79 @@ const updE = toItemUpdates(armor("Plate", "heavy", { ac: 6 }), accumulate("armou
 check("+1 stone becomes core weight6 (+6 units)", updE["system.weight6"] === 6);
 check("breaks/cannotSneak recorded as a flag for the Judge", toItemUpdates(armor("Plate", "heavy", { ac: 6 }), accumulate("armourEquipment", [7]))["flags.acks-equipment.scavenged"].cannotSneak === true);
 
+
+// --- Class training chunks (JJ p. 290-291) ------------------------------------
+const { grantMatches } = await import(new URL("proficiency.mjs", S));
+const { buildTraining } = await import(new URL("../tools/pack-data.mjs", import.meta.url));
+
+const pAxe = classifyWeapon(weapon("Battle Axe", { melee: true }));
+const pSword = classifyWeapon(weapon("Sword", { melee: true }));
+const pGreat = classifyWeapon(weapon("Two-Handed Sword", { melee: true }));
+const pBow = classifyWeapon(weapon("Long Bow", { missile: true, melee: false }));
+const pDagger = classifyWeapon(weapon("Dagger", { melee: true }));
+
+check("token 'all' grants everything", grantMatches("all", pAxe) && grantMatches("all", pBow));
+check("category token matches its category only", grantMatches("axe", pAxe) && !grantMatches("axe", pSword));
+check("broad (v) missile:all grants every missile weapon", grantMatches("missile:all", pBow) && !grantMatches("missile:all", pSword));
+check("broad (i) melee:medium matches a sword, not a great sword", grantMatches("melee:medium", pSword) && !grantMatches("melee:medium", pGreat));
+check("broad (ii) melee:large matches a great sword", grantMatches("melee:large", pGreat));
+check("restricted list grants a single named weapon", grantMatches("dagger", pDagger) && !grantMatches("dagger", pSword));
+
+const narrowAxes = actor([], { effects: [marker("weaponProf", "axe")] });
+check("a training chunk alone drives proficiency (axe yes, sword no)", isWeaponProficient(narrowAxes, pAxe) && !isWeaponProficient(narrowAxes, pSword));
+check("un-configured character stays permissive", isWeaponProficient(actor([]), pAxe));
+const broadThief = actor([], { effects: [marker("weaponProf", "melee:tiny,melee:small,melee:medium"), marker("weaponProf", "missile:all")] });
+check("JJ thief broad selection: medium melee + all missile, not great swords", isWeaponProficient(broadThief, pSword) && isWeaponProficient(broadThief, pBow) && !isWeaponProficient(broadThief, pGreat));
+
+const lightClass = actor([], { effects: [marker("armourProficiency", "light")] });
+check("armour chunk sets the cap", armorMax(lightClass) === "light");
+const lightPlusTraining = actor([], { effects: [marker("armourProficiency", "light"), marker("armorTraining", "1")] });
+check("Armour Training raises a chunk-granted cap light -> medium", armorMax(lightPlusTraining) === "medium");
+
+const dualChunk = actor([weapon("Sword", { melee: true, id: "d1" }), weapon("Dagger", { melee: true, id: "d2" })], { effects: [marker("styleProficient", "dual")] });
+const dualLo2 = getLoadout(dualChunk);
+check("Fighting Style chunk trains the style (dual proficient)", dualLo2.activeStyle === "dual" && dualLo2.styleProficient);
+check("single + missile are mandatory even with no chunks", getLoadout(actor([weapon("Sword", { melee: true, id: "z" })])).trainedStyles.has("single"));
+
+const training = buildTraining();
+check("training pack has all 34 JJ chunks", training.length === 34);
+check("training chunks are ability items with 16-char ids", training.every((d) => d.type === "ability" && ID.test(d._id)));
+check("all 5 fighting styles are individually available", ["single", "missile", "dual", "twoHanded", "weaponShield"].every((st) => training.some((d) => (d.effects[0]?.changes ?? []).some((c) => c.key.endsWith("styleProficient") && c.value === st))));
+check("all 5 armour rungs are individually available", ["unarmored", "veryLight", "light", "medium", "heavy"].every((a) => training.some((d) => (d.effects[0]?.changes ?? []).some((c) => c.key.endsWith("armourProficiency") && c.value === a))));
+check("all 10 restricted weapons are individually available", training.filter((d) => d.name.startsWith("Restricted Weapon:")).length === 10);
+
+// --- Named items (JJ p. 399) --------------------------------------------------
+SETTINGS_STATE.overlayNamed = true;
+const N = await import(new URL("overlays/named.mjs", S));
+const namedRec = (over = {}) => ({
+  trueName: "Fist of Iron", givenName: "Tooth-Breaker",
+  ladder: ["damage", "hit", "damage", "hit", "damage", "hit"],
+  unlocked: 1, revealed: false, guesses: {}, ...over,
+});
+const hammer = (over = {}) => ({
+  id: "tb", name: over.name ?? "Tooth-Breaker", type: "weapon",
+  system: { damage: "1d6", bonus: 0, equipped: true, weight6: 1 },
+  getFlag: (_m, k) => (k === "named" ? namedRec(over.rec ?? {}) : undefined),
+  effects: [],
+});
+const lvl = (n) => ({ id: "m", system: { details: { level: n } } });
+
+check("first naming unlocks exactly one rung (+1 damage)", (() => { const b = N.unlockedBonuses(hammer()); return b.damage === 1 && b.hit === 0; })());
+check("2nd rung follows the Judge ladder (+1 hit and damage)", (() => { const b = N.unlockedBonuses(hammer({ rec: { unlocked: 2 } })); return b.damage === 1 && b.hit === 1; })());
+check("Tooth-Breaker at 6 rungs is the full +3/+3", (() => { const b = N.unlockedBonuses(hammer({ rec: { unlocked: 6 } })); return b.damage === 3 && b.hit === 3; })());
+check("unlocked never exceeds the ladder length", N.unlockedCount(hammer({ rec: { unlocked: 99 } })) === 6);
+check("revealed true name -> full power regardless of unlocked", (() => { const b = N.unlockedBonuses(hammer({ rec: { unlocked: 1, revealed: true } })); return b.damage === 3 && b.hit === 3; })());
+check("true name match is case/space-insensitive", N.nameMatches(hammer(), "  fist of iron ") && !N.nameMatches(hammer(), "Tooth-Breaker"));
+check("a character may guess once", N.canGuess(hammer(), lvl(3)));
+check("a wrong guess locks that character out at their level", (() => { const r = N.resolveGuess(hammer(), lvl(3), "Wrong Name"); return r.allowed && !r.correct && r.updates["flags.acks-equipment.named.guesses"].m === 3; })());
+check("cannot guess again at the same level", !N.canGuess(hammer({ rec: { guesses: { m: 3 } } }), lvl(3)));
+check("gaining a level allows another guess", N.canGuess(hammer({ rec: { guesses: { m: 3 } } }), lvl(4)));
+check("correct guess reveals and renames the item to its true name", (() => { const r = N.resolveGuess(hammer(), lvl(3), "Fist of Iron"); return r.correct && r.updates.name === "Fist of Iron" && r.updates["flags.acks-equipment.named.revealed"] === true; })());
+check("re-naming renames the item and unlocks one rung", (() => { const u = N.renameUpdates(hammer({ rec: { unlocked: 0 } }), "Orcbiter", 1); return u.name === "Orcbiter" && u["flags.acks-equipment.named.unlocked"] === 1; })());
+check("level-up advances exactly one rung", N.advanceOnLevelUp(hammer({ rec: { unlocked: 2 } }))["flags.acks-equipment.named.unlocked"] === 3);
+check("a fully unlocked item does not advance further", N.advanceOnLevelUp(hammer({ rec: { unlocked: 6 } })) === null);
+check("a revealed item does not advance (already full)", N.advanceOnLevelUp(hammer({ rec: { revealed: true } })) === null);
+check("unlocked bonuses map onto core fields", (() => { const u = N.toItemUpdates(hammer({ rec: { unlocked: 6 } }), { bonus: 0, damage: "1d6" }); return u["system.bonus"] === 3 && u["system.damage"] === "1d6+3"; })());
+SETTINGS_STATE.overlayNamed = false;
+
 console.log(`test-logic: all ${pass} checks passed`);

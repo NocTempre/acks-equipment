@@ -90,6 +90,41 @@ async function onPaperDollEquip(actor, item, equipped, slotData) {
   await refreshLoadout(actor); // self-guards to the primary responder
 }
 
+/**
+ * Core sheet → doll. Unequipping on the character sheet must empty the slot on
+ * the doll; without this the doll keeps showing the item as worn.
+ *
+ * Paper Doll's own clear path (`_onContextMenu`) empties a slot by assigning
+ * **null** to `slots[slotId][slotIndex]` and re-saving the whole flag — it does
+ * not delete the key — so we mirror that exactly. Assigning null over an already
+ * null slot is a no-op, so the doll's own equip/unequip cannot loop back here.
+ * @returns {Promise<boolean>} whether anything was cleared
+ */
+export async function clearFromPaperDoll(actor, item) {
+  const slots = foundry.utils.deepClone(actor.getFlag(PAPERDOLL_ID, "slots") ?? {});
+  let changed = false;
+  for (const [slotId, entries] of Object.entries(slots)) {
+    if (!entries || typeof entries !== "object") continue;
+    for (const [index, uuid] of Object.entries(entries)) {
+      if (uuid && uuid === item.uuid) {
+        slots[slotId][index] = null;
+        changed = true;
+      }
+    }
+  }
+  if (changed) await actor.setFlag(PAPERDOLL_ID, "slots", slots);
+  return changed;
+}
+
+/** Any unequip — sheet toggle, auto-resolve, or macro — empties the doll slot. */
+async function onItemUnequipped(item, changes) {
+  if (!foundry.utils.hasProperty(changes, "system.equipped")) return;
+  if (foundry.utils.getProperty(changes, "system.equipped")) return; // equips are handled by the doll itself
+  const actor = item?.parent;
+  if (actor?.documentName !== "Actor" || !actor.isOwner) return;
+  await clearFromPaperDoll(actor, item);
+}
+
 async function onPaperDollSwap(actor, a, b) {
   if (!actor) return;
   for (const side of [a, b]) {
@@ -110,6 +145,10 @@ export function registerPaperDoll() {
   );
   Hooks.on(PAPERDOLL_HOOKS.SWAP, (actor, a, b) =>
     onPaperDollSwap(actor, a, b).catch((err) => console.error(`${MODULE_ID} | paper-doll-swap failed`, err)),
+  );
+  // Core sheet → doll: keep the doll in step when gear is unequipped elsewhere.
+  Hooks.on("updateItem", (item, changes) =>
+    onItemUnequipped(item, changes).catch((err) => console.error(`${MODULE_ID} | paper-doll unequip sync failed`, err)),
   );
 
   if (game.user.isGM && !game.settings.get(MODULE_ID, SETTINGS.PAPERDOLL_CONFIGURED)) {

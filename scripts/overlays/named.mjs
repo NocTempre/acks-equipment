@@ -1,0 +1,171 @@
+/* global game */
+/**
+ * Overlay: named arms & armour (JJ p. 399; docs/RULES.md §13).
+ * Gated by the `overlayNamed` world setting.
+ *
+ * The name is the MECHANISM, not flavour: "only those who confidently speak the
+ * name of the item receive the full benefit of its powers."
+ *
+ *  - Speaking the TRUE name → all powers unlock at once.
+ *  - An unsure character may GUESS ONCE, and may not guess again until reaching
+ *    a higher level of experience — so guesses are tracked per character, per
+ *    level.
+ *  - Re-naming instead unlocks ONE point of bonus in one category, then one more
+ *    per level of experience earned while wielding/wearing it.
+ *  - The JUDGE sets the unlock order ("You make the determination of the order in
+ *    which the item's powers unlock") — this never auto-picks it.
+ *  - Progress lives on the ITEM and survives its wielder: Marcus's +2/+2 hammer
+ *    is "a +2 weapon in [Peristo's] hands", and advances on Peristo's level-ups.
+ *
+ * NOT RAW, deliberately absent: any renown/XP track of the item's own. RAW ties
+ * unlocking to levels of experience earned while wielding.
+ *
+ * Reuse first: unlocked points are applied to fields core already owns
+ * (system.bonus, the damage string, aac.value, weight6) — same as masterwork.
+ */
+import { MODULE_ID, SETTINGS, ITEM_FLAGS } from "../constants.mjs";
+
+/** Bonus categories a named item can unlock (JJ p. 399). */
+export const NAMED_CATEGORIES = Object.freeze({
+  hit: { label: "+1 to hit", field: "bonus" },
+  damage: { label: "+1 to damage", field: "damage" },
+  ac: { label: "+1 to AC", field: "ac" },
+  encumbrance: { label: "−1 to encumbrance", field: "weight6" },
+  power: { label: "a special power or ceremonial spell", field: null },
+});
+
+export function overlayEnabled() {
+  return !!game.settings.get(MODULE_ID, SETTINGS.OVERLAY_NAMED);
+}
+
+/** The named-item record on an item, or null. */
+export function namedOf(item) {
+  return item?.getFlag?.(MODULE_ID, ITEM_FLAGS.NAMED) ?? null;
+}
+export function isNamed(item) {
+  return !!namedOf(item);
+}
+
+/**
+ * The ladder the Judge set: an ordered list of category keys, one entry per
+ * point of bonus. e.g. ["damage","hit","damage","hit","damage","hit"] is the
+ * Tooth-Breaker example's +3/+3.
+ */
+export function ladderOf(item) {
+  const rec = namedOf(item);
+  return Array.isArray(rec?.ladder) ? rec.ladder : [];
+}
+
+/** How many rungs are currently unlocked. */
+export function unlockedCount(item) {
+  const rec = namedOf(item);
+  if (rec?.revealed) return ladderOf(item).length; // true name known → full power
+  return Math.max(0, Math.min(Number(rec?.unlocked ?? 0), ladderOf(item).length));
+}
+
+/** Totals per category for the unlocked rungs. */
+export function unlockedBonuses(item) {
+  const ladder = ladderOf(item);
+  const n = unlockedCount(item);
+  const out = { hit: 0, damage: 0, ac: 0, encumbrance: 0, power: 0 };
+  for (let i = 0; i < n; i++) {
+    const key = ladder[i];
+    if (key in out) out[key] += 1;
+  }
+  return out;
+}
+
+/** Does a spoken name match the item's true name? Case/space-insensitive. */
+export function nameMatches(item, spoken) {
+  const rec = namedOf(item);
+  if (!rec?.trueName) return false;
+  const norm = (s) => String(s ?? "").trim().toLowerCase().replace(/\s+/g, " ");
+  return norm(rec.trueName) === norm(spoken);
+}
+
+/**
+ * May this character guess the name right now? RAW: one guess, then none until
+ * "reaching a higher level of experience" — so a guess is allowed only if the
+ * character has never guessed, or has gained a level since their last guess.
+ */
+export function canGuess(item, actor) {
+  const rec = namedOf(item);
+  if (!rec) return false;
+  if (rec.revealed) return false;
+  const last = rec.guesses?.[actor.id];
+  if (last == null) return true;
+  return Number(actor.system?.details?.level ?? 1) > Number(last);
+}
+
+/**
+ * Resolve a guess. A correct guess reveals the true name and unlocks everything;
+ * a wrong one records the guesser's level and locks them out until they level.
+ * @returns {{allowed:boolean, correct:boolean, updates:object}}
+ */
+export function resolveGuess(item, actor, spoken) {
+  if (!canGuess(item, actor)) return { allowed: false, correct: false, updates: {} };
+  const rec = namedOf(item);
+  const correct = nameMatches(item, spoken);
+  const guesses = { ...(rec.guesses ?? {}) };
+  const updates = {};
+  if (correct) {
+    updates[`flags.${MODULE_ID}.${ITEM_FLAGS.NAMED}.revealed`] = true;
+    updates[`flags.${MODULE_ID}.${ITEM_FLAGS.NAMED}.givenName`] = rec.trueName;
+    updates.name = rec.trueName; // the item is thereafter called by its true name
+  } else {
+    guesses[actor.id] = Number(actor.system?.details?.level ?? 1);
+    updates[`flags.${MODULE_ID}.${ITEM_FLAGS.NAMED}.guesses`] = guesses;
+  }
+  return { allowed: true, correct, updates };
+}
+
+/**
+ * Re-name a found item. RAW: naming it grants one point immediately, and the
+ * item is thereafter called by that name — so the item document is renamed.
+ */
+export function renameUpdates(item, givenName, wielderLevel) {
+  const rec = namedOf(item) ?? {};
+  return {
+    name: givenName,
+    [`flags.${MODULE_ID}.${ITEM_FLAGS.NAMED}.givenName`]: givenName,
+    [`flags.${MODULE_ID}.${ITEM_FLAGS.NAMED}.unlocked`]: Math.max(1, Number(rec.unlocked ?? 0)),
+    [`flags.${MODULE_ID}.${ITEM_FLAGS.NAMED}.namedAtLevel`]: Number(wielderLevel ?? 1),
+    [`flags.${MODULE_ID}.${ITEM_FLAGS.NAMED}.revealed`]: false,
+  };
+}
+
+/**
+ * Advance the ladder when the current wielder gains a level. RAW counts levels
+ * of experience EARNED while wielding, so this is driven by a level-up event
+ * rather than by the wielder's absolute level (an item does not leap forward
+ * when a high-level character picks it up).
+ * @returns {object|null} item updates, or null when nothing advances
+ */
+export function advanceOnLevelUp(item) {
+  const rec = namedOf(item);
+  if (!rec || rec.revealed) return null;
+  const ladder = ladderOf(item);
+  const now = unlockedCount(item);
+  if (now >= ladder.length) return null;
+  return { [`flags.${MODULE_ID}.${ITEM_FLAGS.NAMED}.unlocked`]: now + 1 };
+}
+
+/**
+ * Apply the unlocked bonuses to the fields core already owns.
+ * Called with the item's BASE values so repeated application is idempotent.
+ */
+export function toItemUpdates(item, base = {}) {
+  const b = unlockedBonuses(item);
+  const updates = {};
+  if (item.type === "weapon") {
+    if (b.hit) updates["system.bonus"] = Number(base.bonus ?? item.system?.bonus ?? 0) + b.hit;
+    if (b.damage) updates["system.damage"] = `${base.damage ?? item.system?.damage ?? "1d6"}+${b.damage}`;
+  }
+  if (item.type === "armor" && b.ac) {
+    updates["system.aac.value"] = Number(base.aac ?? item.system?.aac?.value ?? 0) + b.ac;
+  }
+  if (b.encumbrance) {
+    updates["system.weight6"] = Math.max(0, Number(base.weight6 ?? item.system?.weight6 ?? 0) - b.encumbrance * 6);
+  }
+  return updates;
+}

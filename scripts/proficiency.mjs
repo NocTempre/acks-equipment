@@ -27,41 +27,80 @@ function raiseCategory(category, steps) {
   return ARMOR_LADDER[Math.min(ARMOR_LADDER.length - 1, i + Math.max(0, steps))];
 }
 
+/** Known weapon-category tokens (JJ p. 290 narrow/broad groupings). */
+const CATEGORY_TOKENS = new Set(["axe", "bow", "crossbow", "flailhammermace", "sworddagger", "spearpolearm", "other"]);
+
 /**
- * The actor's resolved weapon proficiency.
- * @returns {{all:boolean, categories:Set<string>, weapons:Set<string>}}
+ * Grant-token grammar for class training (JJ p. 290). A proficiency grant is a
+ * CSV of tokens; the class's selection chunks are expressed with these:
+ *   all                 unrestricted
+ *   missile:all         every missile weapon (broad choice v)
+ *   melee:<size>        melee weapons of that size — broad choices i and ii are
+ *                       size-based ("any tiny, small, or medium melee weapons"),
+ *                       not category-based, so sizes are first-class here
+ *   <category>          axe | bow | crossbow | flailHammerMace | swordDagger |
+ *                       spearPolearm | other
+ *   <weaponKey>         a single named weapon (the restricted list)
+ */
+export function grantMatches(token, profile) {
+  const t = String(token).trim().toLowerCase();
+  if (!t) return false;
+  if (t === "all") return true;
+  if (t === "missile:all") return !!profile.missile;
+  if (t.startsWith("melee:")) return !!profile.melee && String(profile.size).toLowerCase() === t.slice(6);
+  if (CATEGORY_TOKENS.has(t)) return String(profile.cat).toLowerCase() === t;
+  return profile.key === normalizeName(t);
+}
+
+/**
+ * The actor's resolved weapon proficiency: the per-actor profile flag, plus the
+ * class-training chunks and Martial Training grants carried as effect markers.
+ * @returns {{all:boolean, tokens:Set<string>}}
  */
 export function weaponProficiency(actor) {
+  const tokens = new Set([
+    ...collectStringFlags(actor, EFFECT_DOMAINS.WEAPON_PROF),
+    ...collectStringFlags(actor, EFFECT_DOMAINS.MARTIAL_WEAPONS),
+  ]);
   const flag = actor.getFlag?.(MODULE_ID, ACTOR_FLAGS.WEAPON_PROF);
-  const martial = collectStringFlags(actor, EFFECT_DOMAINS.MARTIAL_WEAPONS); // category tokens
-  if (flag == null || flag === "all") {
-    return { all: martial.size === 0, categories: martial, weapons: new Set() };
+  if (flag != null && flag !== "") {
+    String(flag).split(",").map((s) => s.trim().toLowerCase()).filter(Boolean).forEach((t) => tokens.add(t));
+  } else if (!tokens.size) {
+    // No profile and no training chunks: stay permissive rather than penalise
+    // every un-configured character.
+    return { all: true, tokens };
   }
-  const tokens = String(flag)
-    .split(",")
-    .map((s) => s.trim().toLowerCase())
-    .filter(Boolean);
-  const categories = new Set(martial);
-  const weapons = new Set();
-  // A token is a category if it matches a known category token; else a weapon key.
-  const CATS = new Set(["axe", "bow", "crossbow", "flailhammermace", "sworddagger", "spearpolearm", "other"]);
-  for (const t of tokens) {
-    if (CATS.has(t)) categories.add(t);
-    else weapons.add(normalizeName(t));
-  }
-  return { all: false, categories, weapons };
+  return { all: tokens.has("all"), tokens };
 }
 
 /** Is a weapon (resolved profile) one the actor is proficient with? */
 export function isWeaponProficient(actor, profile, prof = weaponProficiency(actor)) {
   if (prof.all) return true;
-  if (profile.key && prof.weapons.has(profile.key)) return true;
-  return prof.categories.has(String(profile.cat).toLowerCase());
+  for (const token of prof.tokens) {
+    if (grantMatches(token, profile)) return true;
+  }
+  return false;
 }
 
-/** Highest armour category the actor may wear without penalty (+ Armour Training). */
+/**
+ * Highest armour category the actor may wear without penalty: the best of the
+ * per-actor profile flag and any class-training chunk, then raised by Armour
+ * Training. With neither flag nor chunk we stay permissive ("heavy") rather than
+ * penalise an un-configured character.
+ */
 export function armorMax(actor) {
-  const base = actor.getFlag?.(MODULE_ID, ACTOR_FLAGS.ARMOR_MAX) ?? "heavy";
+  const granted = [...collectStringFlags(actor, EFFECT_DOMAINS.ARMOR_PROF)];
+  const flag = actor.getFlag?.(MODULE_ID, ACTOR_FLAGS.ARMOR_MAX);
+  const candidates = [...granted];
+  if (flag) candidates.push(String(flag).toLowerCase());
+  // Compare case-insensitively against the ladder (which is camelCase).
+  const rankOf = (c) => ARMOR_LADDER.findIndex((l) => l.toLowerCase() === String(c).toLowerCase());
+  let base = "heavy";
+  if (candidates.length) {
+    base = candidates.reduce((best, c) => (rankOf(c) > rankOf(best) ? c : best), candidates[0]);
+    const i = rankOf(base);
+    base = i >= 0 ? ARMOR_LADDER[i] : "heavy";
+  }
   const training = sumEffectModifiers(actor, EFFECT_DOMAINS.ARMOR_TRAINING);
   return raiseCategory(base, training);
 }

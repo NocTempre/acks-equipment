@@ -367,6 +367,89 @@ export function buildProficiencies() {
 }
 
 /* -------------------------------------------- */
+/*  Class training chunks (JJ p. 290-291)       */
+/* -------------------------------------------- */
+
+// The JJ Fighting Value selections, broken into the individual chunks the book
+// actually lists — NOT per-class bundles. A class grants some combination of
+// these; drag on the ones its Fighting Value bought. Each carries the effect
+// markers the enforcement engine reads (docs/RULES.md §5/§6).
+
+const TRAINING = [
+  // Fighting styles (JJ p. 291). Single + Missile are mandatory for every class.
+  { n: "Fighting Style: Single Weapon", m: { styleProficient: "single" }, d: "Fighting while wielding a single tiny, small, or medium melee weapon. <em>Mandatory for every class.</em>" },
+  { n: "Fighting Style: Missile Weapon", m: { styleProficient: "missile" }, d: "Fighting while wielding a missile weapon in one, both, or each hand (depending on the weapon). <em>Mandatory for every class.</em>" },
+  { n: "Fighting Style: Dual Weapon", m: { styleProficient: "dual" }, d: "Fighting while wielding a tiny, small, or medium melee weapon in each hand. Grants the RAW +1 to melee attack throws for the second weapon." },
+  { n: "Fighting Style: Two-Handed Weapon", m: { styleProficient: "twoHanded" }, d: "Fighting while wielding a medium or large melee weapon in both hands." },
+  { n: "Fighting Style: Weapon & Shield", m: { styleProficient: "weaponShield" }, d: "Fighting while wielding a small, tiny, or medium weapon or missile weapon in one hand and a shield in the other. <strong>Classes which lack this style gain no benefit from shields.</strong>" },
+
+  // Armour proficiency ladder (JJ p. 290). Each includes everything lighter.
+  { n: "Armour Proficiency: None", m: { armourProficiency: "unarmored" }, d: "No armour proficiency. Such a class also cannot select the Weapon &amp; Shield fighting style." },
+  { n: "Armour Proficiency: Very Light", m: { armourProficiency: "veryLight" }, d: "Proficiency with very light armour (hide, fur, padded)." },
+  { n: "Armour Proficiency: Light", m: { armourProficiency: "light" }, d: "Proficiency with light and very light armour (leather and below)." },
+  { n: "Armour Proficiency: Medium", m: { armourProficiency: "medium" }, d: "Proficiency with medium, light, and very light armour (chain and below)." },
+  { n: "Armour Proficiency: Heavy", m: { armourProficiency: "heavy" }, d: "Proficiency with heavy, medium, light, and very light armour (all armour)." },
+
+  // Unrestricted (JJ p. 290).
+  { n: "Weapon Selection: Unrestricted", m: { weaponProf: "all" }, d: "The class has proficiency in <strong>all</strong> weapons. (Fighting Value 2+.)" },
+
+  // Narrow: any 2 of these 7 (JJ p. 290).
+  { n: "Narrow Weapons: Any Axes", m: { weaponProf: "axe" }, d: "Narrow selection (i): any axes." },
+  { n: "Narrow Weapons: Any Bows & Crossbows", m: { weaponProf: "bow,crossbow" }, d: "Narrow selection (ii): any bows and crossbows." },
+  { n: "Narrow Weapons: Any Flails, Hammers & Maces", m: { weaponProf: "flailHammerMace" }, d: "Narrow selection (iii): any flails, hammers, and maces." },
+  { n: "Narrow Weapons: Any Swords & Daggers", m: { weaponProf: "swordDagger" }, d: "Narrow selection (iv): any swords and daggers." },
+  { n: "Narrow Weapons: Any Spears & Pole Arms", m: { weaponProf: "spearPolearm" }, d: "Narrow selection (v): any spears and pole arms." },
+  { n: "Narrow Weapons: Bolas, Cestus, Nets, Saps, Slings, Staff-Slings & Whips", m: { weaponProf: "other" }, d: "Narrow selection (vi): any bolas, cestus, nets, saps, slings, staff-slings, and whips." },
+  { n: "Narrow Weapons: Any Combination of 3 Weapons", m: {}, d: "Narrow selection (vii): any combination of 3 weapons. <em>List the three on the effect's <code>weaponProf</code> change (comma-separated weapon names). Composite/long bow require short bow; spear/pole arm require javelin.</em>" },
+
+  // Broad: any 2 of these 6 (JJ p. 290). Note (i) and (ii) are SIZE-based.
+  { n: "Broad Weapons: Any Tiny, Small or Medium Melee", m: { weaponProf: "melee:tiny,melee:small,melee:medium" }, d: "Broad choice (i): any tiny, small, or medium melee weapons." },
+  { n: "Broad Weapons: Any Medium or Large Melee", m: { weaponProf: "melee:medium,melee:large" }, d: "Broad choice (ii): any medium or large melee weapons." },
+  { n: "Broad Weapons: Any Axes, Flails, Hammers & Maces", m: { weaponProf: "axe,flailHammerMace" }, d: "Broad choice (iii): any axes, flails, hammers, and maces." },
+  { n: "Broad Weapons: Any Swords, Daggers, Spears & Polearms", m: { weaponProf: "swordDagger,spearPolearm" }, d: "Broad choice (iv): any swords, daggers, spears, and polearms." },
+  { n: "Broad Weapons: All Missile Weapons", m: { weaponProf: "missile:all" }, d: "Broad choice (v): all missile weapons." },
+  { n: "Broad Weapons: Any Combination of 5 Weapons", m: {}, d: "Broad choice (vi): any combination of 5 weapons. <em>List the five on the effect's <code>weaponProf</code> change. Composite/long bow require short bow; spear/pole arm require javelin.</em>" },
+];
+
+// Restricted: any 4 of these 10 specific weapons (JJ p. 290).
+const RESTRICTED_WEAPONS = ["Bola", "Cestus", "Club", "Dagger", "Dart", "Net", "Sap", "Sling", "Staff", "Whip"];
+for (const w of RESTRICTED_WEAPONS) {
+  TRAINING.push({
+    n: `Restricted Weapon: ${w}`,
+    m: { weaponProf: w.toLowerCase() },
+    d: `Restricted selection: proficiency with the ${w.toLowerCase()}. A restricted class picks <strong>any 4</strong> of bola, cestus, club, dagger, dart, net, sap, sling, staff, whip.`,
+  });
+}
+
+function trainingDoc(t, i) {
+  const id = `acksEqTrain${String(i + 1).padStart(5, "0")}`; // 16 chars
+  const effId = `acksEqTrEf${String(i + 1).padStart(6, "0")}`;
+  const hasMarkers = Object.keys(t.m).length > 0;
+  return {
+    _id: id,
+    _key: `!items!${id}`,
+    name: t.n,
+    type: "ability",
+    img: "icons/svg/sword.svg",
+    system: {
+      proficiencytype: "class", favorite: false, pattern: "white", requirements: "",
+      roll: "", rollType: "above", rollTarget: 0, blindroll: false,
+      description: `<p>${t.d}</p><p><em>Class training chunk — Judges Journal pp. 290–291. Grant the chunks the character's class actually bought with its Fighting Value.</em></p>`,
+      save: "", _schemaVersion: 3,
+    },
+    effects: hasMarkers ? [effectDoc(id, effId, t.n, t.m)] : [],
+    flags: { [MODULE_ID]: { example: true, training: true } },
+    ownership: { default: 0 },
+    sort: (i + 1) * 100,
+    _stats: { ...STATS },
+  };
+}
+
+export function buildTraining() {
+  return TRAINING.map(trainingDoc);
+}
+
+/* -------------------------------------------- */
 /*  Sample equipment (JJ pp. 407-408; RR p. 159)*/
 /* -------------------------------------------- */
 
@@ -586,6 +669,7 @@ export { MODULE_ID, STATS };
  * skipped by the harness and stay undeclared in module.json.
  */
 export const packs = {
+  "equipment-training": buildTraining,
   "equipment-proficiencies": buildProficiencies,
   "equipment-samples": buildSamples,
   "equipment-actors": buildActors,
