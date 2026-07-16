@@ -585,4 +585,22 @@ check("loadout AE changes use string `type`, not `mode`", typedChanges.every((c)
 const profEffectChanges = buildProficiencies().flatMap((d) => d.effects[0]?.changes ?? []);
 check("pack effect changes use string `type`, not `mode`", profEffectChanges.length > 0 && profEffectChanges.every((c) => c.type === "override" && c.mode === undefined));
 
+
+// Every register* entry point runs too. These have function-body references
+// that node --check cannot see — exactly how the buildApi ReferenceError hid.
+const registered = [];
+globalThis.game.settings.register = (_m, k) => registered.push(k);
+globalThis.game.user = { isGM: false };
+globalThis.libWrapper = { register: () => {} };
+globalThis.CONFIG = { Actor: { documentClass: { prototype: {} } } };
+const { registerSettings } = await import(new URL("settings.mjs", S));
+registerSettings();
+check("registerSettings() runs and registers the settings", registered.includes("enforceMode") && registered.includes("overlayNamed"));
+const { registerRollWrap } = await import(new URL("roll-wrap.mjs", S));
+registerRollWrap();
+check("registerRollWrap() runs without throwing", true);
+const { registerPaperDoll, activeStrategy } = await import(new URL("paperdoll.mjs", S));
+registerPaperDoll();
+check("registerPaperDoll() runs and falls back when the doll is absent", activeStrategy() === "fallback");
+
 console.log(`test-logic: all ${pass} checks passed`);
