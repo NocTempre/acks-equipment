@@ -132,7 +132,7 @@ ChatMessage.create({
 });`,
   },
   {
-    _id: "acksEqNamed0000",
+    _id: "acksEqNamed00000",
     name: "Named Arms & Armour",
     img: "icons/svg/mystery-man.svg",
     command: `// JJ p. 399 (optional). The NAME is the mechanism: speaking an item's true name
