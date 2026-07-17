@@ -36,6 +36,15 @@ export function primaryResponder(actor) {
   return !!actor?.isOwner;
 }
 
+/**
+ * Loadout automation is a character-only concern. Monsters (and any other actor
+ * type) never carry an Equipment Loadout effect, so we must never react to their
+ * item/effect churn — doing so spawned phantom "Equipment Loadout" effects and a
+ * storm of "ActiveEffect does not exist" races when another module rewrote a
+ * monster's embedded items. This is the single gate every write path checks.
+ */
+export const managesLoadout = (actor) => actor?.type === "character";
+
 /** Blocking (non-advisory) violations of a loadout. */
 function blockingViolations(loadout) {
   return loadout.violations.filter((v) => !v.advisory);
@@ -87,7 +96,7 @@ export async function onUpdateItem(item, changes) {
   // Only react to equip toggles (and never to our own AE writes elsewhere).
   if (!isEquipToggle(item, changes)) return;
   const actor = item.parent;
-  if (!primaryResponder(actor)) return;
+  if (!managesLoadout(actor) || !primaryResponder(actor)) return;
 
   const loadout = getLoadout(actor);
   const blocking = blockingViolations(loadout);
@@ -137,7 +146,7 @@ async function autoResolve(actor, loadout, blocking) {
 
 /** Rebuild the loadout effect without an equip toggle (e.g. style/prof change). */
 export async function refreshLoadout(actor) {
-  if (!primaryResponder(actor)) return;
+  if (!managesLoadout(actor) || !primaryResponder(actor)) return;
   const loadout = getLoadout(actor);
   await syncLoadoutEffect(actor, loadout);
   Hooks.callAll(HOOKS.LOADOUT_CHANGED, actor, loadout);

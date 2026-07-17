@@ -10,7 +10,7 @@
 import { MODULE_ID, SETTINGS, LOADOUT_EFFECT_FLAG } from "./constants.mjs";
 import { registerSettings } from "./settings.mjs";
 import { buildApi } from "./api.mjs";
-import { onPreUpdateItem, onUpdateItem, refreshLoadout, primaryResponder } from "./enforce.mjs";
+import { onPreUpdateItem, onUpdateItem, refreshLoadout, primaryResponder, managesLoadout } from "./enforce.mjs";
 import { registerRollWrap } from "./roll-wrap.mjs";
 import { registerPaperDoll } from "./paperdoll.mjs";
 import { advanceWieldedOnLevelUp } from "./overlays/named.mjs";
@@ -58,6 +58,21 @@ Hooks.once("ready", async () => {
   for (const actor of owned) {
     refreshLoadout(actor).catch((err) => console.error(`${MODULE_ID} | initial loadout sync failed for ${actor.name}`, err));
   }
+
+  // One-time hygiene: earlier builds (before the character-only guard) could
+  // strand managed loadout effect(s) on a non-character actor — e.g. a monster
+  // whose embedded items another module rewrote, sometimes several duplicates.
+  // Remove every such stray in a single pass.
+  for (const actor of game.actors.filter((a) => a.type !== "character" && a.isOwner)) {
+    if (!primaryResponder(actor)) continue;
+    const strays = actor.effects.filter((e) => e.getFlag?.(MODULE_ID, LOADOUT_EFFECT_FLAG) === true).map((e) => e.id);
+    if (strays.length) {
+      actor
+        .deleteEmbeddedDocuments("ActiveEffect", strays)
+        .then(() => console.log(`${MODULE_ID} | removed ${strays.length} stray loadout effect(s) from ${actor.name} (${actor.type}).`))
+        .catch((err) => console.warn(`${MODULE_ID} | could not remove stray loadout effects on ${actor.name}`, err));
+    }
+  }
 });
 
 /* -------------------------------------------- */
@@ -82,7 +97,12 @@ Hooks.on("updateItem", (item, changes) => {
 const LOADOUT_ITEM_TYPES = ["weapon", "armor", "ability"];
 function onLoadoutItemChange(item) {
   const actor = item?.parent;
-  if (actor?.documentName === "Actor" && primaryResponder(actor) && LOADOUT_ITEM_TYPES.includes(item.type)) {
+  if (
+    actor?.documentName === "Actor" &&
+    managesLoadout(actor) &&
+    primaryResponder(actor) &&
+    LOADOUT_ITEM_TYPES.includes(item.type)
+  ) {
     refreshLoadout(actor).catch((err) => console.error(`${MODULE_ID} | item loadout sync failed`, err));
   }
 }
