@@ -154,6 +154,13 @@ export function buildLoadoutChanges(actor, loadout) {
   // Conditional AC (Swashbuckling / Blade-Dancing) computed in the loadout.
   add("system.aac.mod", loadout.condAC ?? 0);
 
+  // Non-proficient use (RR p. 106): "regardless of level, the characters will
+  // receive no bonus on their ... armor class from attributes". Bonuses only —
+  // an attribute PENALTY still applies, so cancel max(0, dex.mod).
+  if (loadout.nonProficientUse) {
+    add("system.aac.mod", -Math.max(0, Number(actor.system?.scores?.dex?.mod ?? 0)));
+  }
+
   // JJ shield-variant overlay: core's computeAC adds any equipped shield's AC
   // unconditionally. Where RAW grants none (a buckler without Specialization, or
   // a shield strapped on the back), cancel it rather than fight core.

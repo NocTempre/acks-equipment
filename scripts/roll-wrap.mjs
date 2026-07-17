@@ -7,7 +7,13 @@
  * fields by the managed loadout Active Effect — no patch needed. What CANNOT be
  * expressed as a static actor modifier is *per-weapon*, so it is injected here:
  *
- *   - non-proficiency −1 (weapon OR fighting style untrained; RAW, applied once)
+ *   - RAW non-proficient use (RR p. 106 sidebar): 1st+ level characters attack
+ *     as 0th-level fighters (attack throw 11+, i.e. bba −1) while equipped with
+ *     any weapon/armour unusable by their class or an untrained fighting style;
+ *     0th-level characters take an additional −1 instead; and regardless of
+ *     level no attribute BONUS applies to the attack throw (the AC half of that
+ *     clause lives in the loadout effect; class powers/XP are Judge-side and
+ *     surfaced as a violation)
  *   - Weapon Finesse: DEX instead of STR on tiny/small/medium melee attacks
  *   - two-handed damage upsize for medium weapons wielded in both hands (1d6→1d8)
  *
@@ -42,28 +48,63 @@ const FINESSE_SIZES = [SIZE.TINY, SIZE.SMALL, SIZE.MEDIUM];
 export function computeAttackMods(actor, attData, options = {}) {
   if (actor?.type !== "character") return null; // monster natural attacks are not proficiency-gated
   const itemId = attData?.item?._id;
+  // KNOWN GAP: an item-less attack (the sheet's bare attack button) has no
+  // `item.system.bonus` for the wrap to carry a delta through, so the
+  // non-proficient-use degradation below cannot reach it. Judge-side.
   if (!itemId) return null;
   const item = actor.items.get(itemId);
-  if (item?.type !== "weapon") return null;
+  if (item?.type !== "weapon") return null; // non-weapon item rolls stay untouched
 
-  const profile = classifyWeapon(item);
+  const profile = item ? classifyWeapon(item) : null;
   const loadout = getLoadout(actor);
-  const entry = loadout.weapons.find((w) => w.item.id === itemId);
+  const entry = item ? loadout.weapons.find((w) => w.item.id === itemId) : null;
   const notes = [];
   let bonusDelta = 0;
   let damage = null;
 
-  // Non-proficiency: RAW requires BOTH weapon and fighting-style proficiency;
-  // lacking either imposes the penalty once (not twice).
-  const weaponProficient = entry ? entry.proficient : isWeaponProficient(actor, profile);
-  if (!weaponProficient || !loadout.styleProficient) {
-    bonusDelta -= 1;
-    notes.push(!weaponProficient ? "non-proficient weapon (−1)" : `untrained ${loadout.activeStyle} style (−1)`);
+  // RAW "Non-Proficient Use of Weapons and Armor" (RR p. 106 sidebar): the
+  // trigger is the equipped STATE — any unusable weapon, unusable worn armour,
+  // or an untrained fighting style (weapon AND style proficiency are distinct
+  // and BOTH required) — so it degrades EVERY attack while so equipped, even
+  // one made with a weapon the character could otherwise use. Attacking with
+  // an unequipped weapon counts too ("use any weapons ... desired").
+  const usingNonProfWeapon = item && (entry ? !entry.proficient : !isWeaponProficient(actor, profile));
+  if (loadout.nonProficientUse || usingNonProfWeapon) {
+    const level = Number(actor.system?.details?.level ?? 1);
+    const bba = Number(actor.system?.thac0?.bba ?? 0);
+    if (level >= 1) {
+      // 1st+ level: attacks as a 0th-level fighter — attack throw 11+, bba −1.
+      // Core already pushed the actor's own bba, so contribute the difference.
+      if (bba !== -1) {
+        bonusDelta += -1 - bba;
+        notes.push("non-proficient use: attacks as a 0th-level fighter (11+)");
+      }
+    } else {
+      // 0th level: still fights as 0th level, but at an additional −1.
+      bonusDelta -= 1;
+      notes.push("non-proficient 0th-level character (additional −1)");
+    }
+    // Regardless of level: no attribute BONUS on the attack throw. Penalties
+    // are not bonuses and still apply, so only a positive modifier is
+    // cancelled. Core pushed str.mod (melee) or dex.mod (missile).
+    if (options.type === "melee" || options.type === "missile") {
+      const attr = Number(actor.system?.scores?.[options.type === "missile" ? "dex" : "str"]?.mod ?? 0);
+      if (attr > 0) {
+        bonusDelta -= attr;
+        notes.push(`no attribute bonus on attack throws (−${attr})`);
+      }
+    }
+    // Name the failed requirement(s) for the chat/console note.
+    if (usingNonProfWeapon) notes.push(`${item.name}: weapon unusable by class`);
+    if (!loadout.styleProficient) notes.push(`untrained ${loadout.activeStyle} fighting style`);
+    if (loadout.armor && !loadout.armorProficient) notes.push(`${loadout.armor.name}: armour unusable by class`);
   }
 
   // Weapon Finesse — DEX replaces STR on the attack throw. Core pushed str.mod
-  // for melee, so contribute the difference.
-  if (options.type === "melee" && FINESSE_SIZES.includes(profile.size) && hasEffectFlag(actor, EFFECT_DOMAINS.FINESSE)) {
+  // for melee, so contribute the difference. Not while non-proficiently
+  // equipped: no attribute grants any bonus then, so there is nothing to swap.
+  if (item && !loadout.nonProficientUse && !usingNonProfWeapon &&
+      options.type === "melee" && FINESSE_SIZES.includes(profile.size) && hasEffectFlag(actor, EFFECT_DOMAINS.FINESSE)) {
     const str = Number(actor.system?.scores?.str?.mod ?? 0);
     const dex = Number(actor.system?.scores?.dex?.mod ?? 0);
     if (dex !== str) {
@@ -73,7 +114,7 @@ export function computeAttackMods(actor, attData, options = {}) {
   }
 
   // Medium weapon wielded two-handed deals its larger die (RR p. 299).
-  if (options.type === "melee" && entry?.wieldTwoHanded && profile.damage2h) {
+  if (item && options.type === "melee" && entry?.wieldTwoHanded && profile.damage2h) {
     damage = profile.damage2h;
     notes.push(`two-handed grip (${profile.damage2h})`);
   }

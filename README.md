@@ -25,9 +25,13 @@ enforces the RAW.
   Weapon Focus, Martial/Armour Training, Combat Trickery, slayers, and more) plus
   a Configure-Proficiencies macro.
 - **Combat-roll automation** — per-weapon RAW modifiers injected into core's
-  attack/damage rolls via libWrapper: the non-proficiency −1 (weapon *or*
-  untrained style, applied once), Weapon Finesse (DEX for STR), and the
-  two-handed damage upsize. Loadout-level bonuses (style Specialization,
+  attack/damage rolls via libWrapper: the full Non-Proficient Use package
+  (weapon and fighting-style proficiency are distinct and BOTH required —
+  1st+ level characters attack as 0th-level fighters while equipped with
+  anything unusable by their class, 0th-level characters take an additional
+  −1, and no attribute bonus applies to attack throws or AC; class powers and
+  XP denial are surfaced as a Judge-facing warning), Weapon Finesse (DEX for
+  STR), and the two-handed damage upsize. Loadout-level bonuses (style Specialization,
   dual-wield +1, Combat Reflexes, Swashbuckling) need no patch — they ride
   core's own `system.*.mod` fields via the loadout effect.
 - **Draw / sheathe** — a macro applying the RAW action economy, free with

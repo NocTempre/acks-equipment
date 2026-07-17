@@ -169,15 +169,59 @@ const attData = (item) => ({ item: { _id: item.id, name: item.name, system: { bo
 let a = rollActor([swordItem, armor("Shield", "shield", { id: "sh" })], { flags: { styles: "weaponShield" }, system: { scores: { str: { mod: 1 }, dex: { mod: 1 } } } });
 check("proficient, trained, no finesse → no per-attack mods", computeAttackMods(a, attData(swordItem), { type: "melee" }) === null);
 
-// Non-proficient weapon → −1 (applied once).
-a = rollActor([swordItem], { flags: { weaponProficiency: "axe", styles: "single,twoHanded" }, system: { scores: { str: { mod: 1 }, dex: { mod: 1 } } } });
+// --- RAW non-proficient use (RR p. 106 sidebar): the full package ------------
+// 4th-level character (bba +2), STR +2, non-proficient weapon: attacks as a
+// 0th-level fighter (bba −1 → delta −3) with no attribute bonus (−2) = −5.
+const sysL4 = { details: { level: 4 }, thac0: { bba: 2 }, scores: { str: { mod: 2 }, dex: { mod: 1 } } };
+a = rollActor([swordItem], { flags: { weaponProficiency: "axe", styles: "single,twoHanded" }, system: sysL4 });
 let m = computeAttackMods(a, attData(swordItem), { type: "melee" });
-check("non-proficient weapon → −1", m && m.bonusDelta === -1);
+check("non-prof weapon, L4 bba+2 STR+2 → attacks as 0th-level fighter (−5)", m && m.bonusDelta === -5);
 
-// Untrained style also → −1, and never stacks to −2 with the weapon penalty.
-a = rollActor([swordItem], { flags: { weaponProficiency: "axe", styles: "single" }, system: { scores: { str: { mod: 1 }, dex: { mod: 1 } } } });
+// Weapon and style BOTH untrained: one package, never two.
+a = rollActor([swordItem], { flags: { weaponProficiency: "axe", styles: "single" }, system: sysL4 });
 m = computeAttackMods(a, attData(swordItem), { type: "melee" });
-check("weapon+style both untrained → still only −1", m.bonusDelta === -1);
+check("weapon+style both untrained → one package, not two", m.bonusDelta === -5);
+
+// Attribute PENALTIES are not bonuses and still apply.
+a = rollActor([swordItem], { flags: { weaponProficiency: "axe", styles: "single,twoHanded" }, system: { details: { level: 1 }, thac0: { bba: 0 }, scores: { str: { mod: -1 }, dex: { mod: 0 } } } });
+m = computeAttackMods(a, attData(swordItem), { type: "melee" });
+check("attribute penalty kept: only bba replaced (−1)", m.bonusDelta === -1);
+
+// 0th-level characters still fight as 0th level, at an additional −1.
+a = rollActor([swordItem], { flags: { weaponProficiency: "axe", styles: "single,twoHanded" }, system: { details: { level: 0 }, thac0: { bba: -1 }, scores: { str: { mod: 0 }, dex: { mod: 0 } } } });
+m = computeAttackMods(a, attData(swordItem), { type: "melee" });
+check("0th-level non-proficient → additional −1 only", m.bonusDelta === -1);
+
+// Missile attacks strip the DEX bonus instead of STR.
+const bowItem = weapon("Long Bow", { missile: true, melee: false, id: "lb" });
+a = rollActor([bowItem], { flags: { weaponProficiency: "axe", styles: "single,missile" }, system: { details: { level: 1 }, thac0: { bba: 0 }, scores: { str: { mod: 3 }, dex: { mod: 2 } } } });
+m = computeAttackMods(a, attData(bowItem), { type: "missile" });
+check("missile: DEX bonus stripped (−1 bba, −2 dex = −3)", m.bonusDelta === -3);
+
+// Unusable ARMOUR degrades attacks made even with a PROFICIENT weapon —
+// the trigger is the equipped state, not the weapon in hand.
+const sysL1 = { details: { level: 1 }, thac0: { bba: 0 }, scores: { str: { mod: 1 }, dex: { mod: 1 } } };
+a = rollActor([swordItem, armor("Plate", "heavy", { id: "pl" })], { flags: { armorMax: "light", styles: "single,twoHanded" }, system: sysL1 });
+m = computeAttackMods(a, attData(swordItem), { type: "melee" });
+check("unusable armour degrades proficient-weapon attacks (−2)", m && m.bonusDelta === -2);
+
+// Weapon Finesse is inert while non-proficiently equipped: no attribute
+// grants any bonus, so there is nothing to swap in.
+a = rollActor([swordItem, armor("Plate", "heavy", { id: "pl" })], { flags: { armorMax: "light", styles: "single,twoHanded" }, effects: [marker("finesse", "1")], system: { details: { level: 1 }, thac0: { bba: 0 }, scores: { str: { mod: 1 }, dex: { mod: 3 } } } });
+m = computeAttackMods(a, attData(swordItem), { type: "melee" });
+check("Weapon Finesse inert while non-proficiently equipped", m.bonusDelta === -2);
+
+// Loadout: the state + full-package advisory violation, and the AC half —
+// "no bonus on ... armor class from attributes" (bonuses only; penalties stay).
+const npUse = actor([weapon("Battle Axe", { melee: true, id: "ax" })], { flags: { weaponProficiency: "swordDagger", styles: "single,twoHanded" }, system: { scores: { dex: { mod: 2 } }, details: { level: 3 } } });
+const npUseLo = getLoadout(npUse);
+check("nonProficientUse state + advisory violation, still legal", npUseLo.nonProficientUse === true && npUseLo.violations.some((v) => v.type === VIOLATION.NON_PROFICIENT_USE && v.advisory) && npUseLo.legal);
+const npAcSum = buildLoadoutChanges(npUse, npUseLo).filter((c) => c.key === "system.aac.mod").reduce((s, c) => s + Number(c.value), 0);
+check("no attribute bonus to AC while non-proficient (DEX +2 cancelled)", npAcSum === -2);
+const npDexPen = actor([weapon("Battle Axe", { melee: true, id: "ax" })], { flags: { weaponProficiency: "swordDagger", styles: "single,twoHanded" }, system: { scores: { dex: { mod: -2 } }, details: { level: 3 } } });
+check("DEX penalty to AC is kept (penalties are not bonuses)", buildLoadoutChanges(npDexPen, getLoadout(npDexPen)).filter((c) => c.key === "system.aac.mod").reduce((s, c) => s + Number(c.value), 0) === 0);
+const profLo = getLoadout(actor([weapon("Sword", { melee: true, id: "sw" })], { flags: { styles: "single,twoHanded" }, system: { scores: { dex: { mod: 2 } }, details: { level: 3 } } }));
+check("fully proficient loadout → no nonProficientUse state", profLo.nonProficientUse === false && !profLo.violations.some((v) => v.type === VIOLATION.NON_PROFICIENT_USE));
 
 // Weapon Finesse swaps STR (+1) for DEX (+3) → net +2.
 a = rollActor([swordItem], { flags: { styles: "single,twoHanded" }, effects: [marker("finesse", "1")], system: { scores: { str: { mod: 1 }, dex: { mod: 3 } } } });

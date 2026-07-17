@@ -19,9 +19,10 @@ export const VIOLATION = Object.freeze({
   MULTIPLE_ARMOR: "multipleArmor",
   TOO_MANY_SHIELDS: "tooManyShields",
   SHIELD_NO_STYLE: "shieldNoStyle", // class lacks Weapon & Shield style → no benefit (advisory)
-  WEAPON_NOT_PROFICIENT: "weaponNotProficient", // −1 attack, no style benefit (advisory; roll-time penalty in Phase 3)
-  ARMOR_NOT_PROFICIENT: "armorNotProficient", // worn armour above class proficiency (advisory)
-  STYLE_NOT_PROFICIENT: "styleNotProficient", // using an untrained fighting style (advisory)
+  WEAPON_NOT_PROFICIENT: "weaponNotProficient", // weapon unusable by class (advisory; triggers nonProficientUse)
+  ARMOR_NOT_PROFICIENT: "armorNotProficient", // worn armour above class proficiency (advisory; triggers nonProficientUse)
+  STYLE_NOT_PROFICIENT: "styleNotProficient", // using an untrained fighting style (advisory; triggers nonProficientUse)
+  NON_PROFICIENT_USE: "nonProficientUse", // the full RR p. 106 package: attacks as 0th-level fighter, no attribute bonus to attack/AC, no class powers, no XP
   THIEF_SKILL_GATED: "thiefSkillGated", // Backstab/Hide/Pickpocket/Sneak blocked by armour/shield (advisory)
 });
 
@@ -163,6 +164,28 @@ export function getLoadout(actor, opts = {}) {
   if (weapons.length && !styleProficient) {
     violations.push({ type: VIOLATION.STYLE_NOT_PROFICIENT, items: weapons.map((w) => w.item), advisory: true, detail: { style: activeStyle } });
   }
+  // RAW "Non-Proficient Use of Weapons and Armor" (RR p. 106 sidebar): the
+  // condition is the equipped STATE — any unusable weapon, unusable worn
+  // armour, or an untrained fighting style (weapon and style proficiency are
+  // distinct; BOTH are required) — and while it holds, a 1st+ level character
+  // attacks as a 0th-level fighter (a 0th-level one takes an additional −1),
+  // gains no attribute bonus to attack or AC, cannot use class powers, and
+  // earns no XP from the adventure. Attack/AC land in roll-wrap + the loadout
+  // effect; class powers and XP are Judge-side, surfaced via the violation.
+  const nonProficientUse =
+    !!(nonProfWeapons.length > 0 || (armor && !armorProficient) || (weapons.length > 0 && !styleProficient));
+  if (nonProficientUse) {
+    // Offending items; when the only failure is an untrained STYLE the weapons
+    // being used in that style are the offenders.
+    const offenders = [...nonProfWeapons.map((w) => w.item), ...(armor && !armorProficient ? [armor] : [])];
+    violations.push({
+      type: VIOLATION.NON_PROFICIENT_USE,
+      items: offenders.length ? offenders : weapons.map((w) => w.item),
+      advisory: true,
+      detail: { style: activeStyle },
+    });
+  }
+
   const thiefGated = thiefSkillsGated({ armor, shield: shields[0] ?? null });
   if (thiefGated) {
     violations.push({ type: VIOLATION.THIEF_SKILL_GATED, items: [armor, shields[0]].filter(Boolean), advisory: true });
@@ -187,6 +210,7 @@ export function getLoadout(actor, opts = {}) {
     trainedStyles: trained,
     specStyles: spec,
     styleProficient,
+    nonProficientUse,
     thiefSkillsGated: thiefGated,
     condAC: swashbucklingAC(actor, { armor }),
     violations,
