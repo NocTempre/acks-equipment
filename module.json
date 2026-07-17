@@ -18,6 +18,7 @@
       "name": "NocTempre"
     }
   ],
+  "license": "LICENSE",
   "esmodules": [
     "scripts/module.mjs"
   ],
