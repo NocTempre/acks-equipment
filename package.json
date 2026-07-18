@@ -7,7 +7,8 @@
   "scripts": {
     "build:packs": "node tools/build-packs.mjs",
     "validate": "node tools/validate.mjs",
-    "test": "node tools/test-logic.mjs"
+    "test": "node tools/test-logic.mjs",
+    "prepare": "git config core.hooksPath .githooks"
   },
   "devDependencies": {
     "@foundryvtt/foundryvtt-cli": "^1.0.0",
