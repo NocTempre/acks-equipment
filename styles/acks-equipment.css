@@ -15,3 +15,218 @@
 .acks-equipment-loadout .ok {
   color: var(--color-level-success, #18520b);
 }
+
+/* --- Container Manager ------------------------------------------------- */
+
+.acks-equipment-containers__body {
+  display: flex;
+  flex-direction: column;
+  gap: 0.4rem;
+  height: 100%;
+  font-size: var(--font-size-13, 13px);
+}
+
+.acks-equipment-containers__summary {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.5rem;
+}
+
+.acks-equipment-containers__note,
+.acks-equipment-containers__empty {
+  margin: 0;
+  opacity: 0.75;
+}
+
+.acks-equipment-container-scroll {
+  flex: 1;
+  overflow-y: auto;
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+}
+
+.acks-equipment-container {
+  border: 1px solid var(--color-border-light-tertiary, #7a7971);
+  border-radius: 4px;
+  padding: 0.35rem 0.5rem;
+}
+
+/* Drop affordance — deliberately loud, since drag targets are otherwise invisible. */
+.acks-equipment-container.drop-hover {
+  border-color: var(--color-shadow-primary, #ff6400);
+  box-shadow: 0 0 6px var(--color-shadow-primary, #ff6400);
+}
+
+.acks-equipment-container.over .acks-equipment-container__load {
+  color: var(--color-level-error, #b60205);
+  font-weight: bold;
+}
+
+.acks-equipment-container__header {
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+}
+
+.acks-equipment-container__icon {
+  width: 24px;
+  height: 24px;
+  border: none;
+  cursor: pointer;
+}
+
+.acks-equipment-container__name {
+  flex: 1;
+  font-weight: bold;
+}
+
+.acks-equipment-container__controls {
+  display: flex;
+  gap: 0.35rem;
+}
+
+.acks-equipment-container__bar {
+  height: 4px;
+  margin: 0.25rem 0;
+  background: var(--color-border-light-tertiary, #7a7971);
+  border-radius: 2px;
+  overflow: hidden;
+}
+
+.acks-equipment-container__fill {
+  height: 100%;
+  background: var(--color-level-success, #18520b);
+}
+
+.acks-equipment-container.over .acks-equipment-container__fill {
+  background: var(--color-level-error, #b60205);
+}
+
+.acks-equipment-container__contents {
+  margin: 0.2rem 0 0;
+  padding: 0;
+  list-style: none;
+}
+
+.acks-equipment-container__row {
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+  padding: 0.1rem 0;
+  cursor: grab;
+}
+
+.acks-equipment-container__row.empty {
+  cursor: default;
+  opacity: 0.6;
+}
+
+.acks-equipment-container__row img {
+  width: 20px;
+  height: 20px;
+  border: none;
+  cursor: pointer;
+}
+
+.acks-equipment-container__row-name {
+  flex: 1;
+}
+
+.acks-equipment-container__row-weight {
+  opacity: 0.7;
+  font-variant-numeric: tabular-nums;
+}
+
+.acks-equipment-container__worn {
+  margin-left: 0.25rem;
+  opacity: 0.6;
+}
+
+/* Gear whose name matches a RAW carrying device gets a highlighted control. */
+.acks-equipment-container__row a.suggested {
+  color: var(--color-level-success, #18520b);
+}
+
+/* --- Inventory wear buckets -------------------------------------------- */
+
+.acks-equipment-wear {
+  margin-bottom: 0.5rem;
+}
+
+.acks-equipment-wear__title {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 0.15rem 0.25rem;
+  border-bottom: 1px solid var(--color-border-light-tertiary, #7a7971);
+  font-weight: bold;
+}
+
+.acks-equipment-wear__title-text {
+  flex: 1;
+}
+
+.acks-equipment-wear__status {
+  font-weight: normal;
+  opacity: 0.8;
+}
+
+.acks-equipment-wear__status.advisory {
+  color: var(--color-level-warning, #b8860b);
+  opacity: 1;
+}
+
+.acks-equipment-wear__bucket {
+  margin: 0.15rem 0 0.25rem;
+}
+
+.acks-equipment-wear__bucket-header {
+  display: flex;
+  align-items: baseline;
+  gap: 0.4rem;
+  padding: 0.1rem 0.25rem;
+  font-size: var(--font-size-11, 11px);
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  opacity: 0.7;
+}
+
+.acks-equipment-wear__bucket-label {
+  flex: 1;
+}
+
+.acks-equipment-wear__bucket-note {
+  font-variant-numeric: tabular-nums;
+  text-transform: none;
+}
+
+.acks-equipment-wear__bucket.over .acks-equipment-wear__bucket-note {
+  color: var(--color-level-error, #b60205);
+  font-weight: bold;
+  opacity: 1;
+}
+
+.acks-equipment-wear__hint {
+  margin: 0.25rem;
+  opacity: 0.7;
+  font-size: var(--font-size-12, 12px);
+}
+
+/*
+ * Rows are core's own <li> nodes, moved here. Their per-section column widths
+ * come from the section they were rendered for, so neutralise the ones that
+ * would leave gaps and let the name take the slack.
+ */
+.acks-equipment-wear .item-list .item__damage,
+.acks-equipment-wear .item-list .item__range,
+.acks-equipment-wear .item-list .item__special {
+  flex: 0 0 auto;
+  min-width: 0;
+}
+
+.acks-equipment-wear .item-list .item__name {
+  flex: 1;
+  min-width: 0;
+}

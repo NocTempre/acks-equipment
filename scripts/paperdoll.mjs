@@ -20,10 +20,27 @@
  * so a GM's later customisation is never clobbered.
  */
 import { MODULE_ID, SETTINGS, PAPERDOLL_ID, PAPERDOLL_HOOKS, ITEM_FLAGS } from "./constants.mjs";
+import { WEAR } from "./config.mjs";
 import { refreshLoadout } from "./enforce.mjs";
 
 /** Which hand a Paper Doll slot represents (drives dual-wield vs two-handed). */
 const HAND_BY_SLOT = Object.freeze({ MAIN_RIGHT: "main", MAIN_LEFT: "off" });
+
+/**
+ * Paper Doll slot → canonical wear location (config.mjs WEAR). The doll's slot
+ * ids are fixed by ITS template, so this is the seam where the two vocabularies
+ * meet — the sheet buckets and the doll must describe the same place, and this
+ * mapping is what keeps them from drifting apart silently.
+ */
+export const SLOT_WEAR = Object.freeze({
+  HEAD: WEAR.HEAD,
+  BODY: WEAR.BODY,
+  CAPE: WEAR.WORN,
+  GLOVES: WEAR.WORN,
+  BOOTS: WEAR.WORN,
+  MAIN_RIGHT: WEAR.MAIN_HAND,
+  MAIN_LEFT: WEAR.OFF_HAND,
+});
 
 /** Filters expressed as Paper Doll expects: a JS function body over `item`. */
 const F_ARMOUR_SUIT = "return item.type === 'armor' && item.system?.type !== 'shield' && !/helm/i.test(item.name ?? '');";

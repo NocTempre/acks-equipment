@@ -19,12 +19,34 @@ globalThis.game = {
   modules: { get: () => ({ active: false }) },
   users: { activeGM: null },
 };
+// ApplicationV2 stubs. Modules that destructure `foundry.applications.api` at
+// module scope die at IMPORT time if these are missing — the same class of
+// failure as the v0.12.1 "module dead at init" bug — so the harness provides
+// just enough shape for the files to load and be constructed.
+class StubApplicationV2 {
+  constructor(options = {}) { this.options = options; }
+  render() { return this; }
+  close() { return this; }
+  _onRender() {}
+  _onFirstRender() {}
+  _onClose() {}
+}
 globalThis.foundry = {
   utils: {
     deepClone: (x) => JSON.parse(JSON.stringify(x)),
     randomID: () => "rand0000",
     hasProperty: (o, p) => p.split(".").reduce((a, k) => (a == null ? a : a[k]), o) !== undefined,
     getProperty: (o, p) => p.split(".").reduce((a, k) => (a == null ? a : a[k]), o),
+    mergeObject: (a, b) => ({ ...a, ...b }),
+  },
+  applications: {
+    api: {
+      ApplicationV2: StubApplicationV2,
+      HandlebarsApplicationMixin: (Base) => class extends Base {},
+      DialogV2: class { static async prompt() { return null; } },
+    },
+    handlebars: { loadTemplates: () => {} },
+    instances: new Map(),
   },
 };
 // v14: an AE change carries a string `type` (a key of ACTIVE_EFFECT_CHANGE_TYPES;
@@ -380,7 +402,13 @@ const gear = (name, w6, over = {}) => ({
 });
 const withItems = (items) => {
   const a = actor(items);
-  a.items = Object.assign(items.slice(), { filter: (f) => items.filter(f), find: (f) => items.find(f) });
+  a.items = Object.assign(items.slice(), {
+    filter: (f) => items.filter(f),
+    find: (f) => items.find(f),
+    // containerChain walks by id and bounds itself by the collection size.
+    get: (id) => items.find((i) => i.id === id),
+    size: items.length,
+  });
   return a;
 };
 
@@ -646,5 +674,112 @@ check("registerRollWrap() runs without throwing", true);
 const { registerPaperDoll, activeStrategy } = await import(new URL("paperdoll.mjs", S));
 registerPaperDoll();
 check("registerPaperDoll() runs and falls back when the doll is absent", activeStrategy() === "fallback");
+const { registerSheet } = await import(new URL("sheet.mjs", S));
+registerSheet();
+check("registerSheet() runs without throwing", true);
+
+// Overlay toggles with NO implementation behind them must not appear in the
+// settings UI — a switch that silently does nothing is worse than no switch.
+for (const dead of ["overlayMounted", "overlayBeastman", "overlayEnclosingHelm"]) {
+  check(`${dead} is not registered (no implementation exists)`, !registered.includes(dead));
+}
+for (const live of ["overlayShieldVariants", "overlayManeuvers", "overlayItemLoss", "overlayNamed", "overlayScavenged"]) {
+  check(`${live} is registered and gates real code`, registered.includes(live));
+}
+
+/* ---------------------------------------------------------------------- */
+/*  Containers + wear locations                                            */
+/* ---------------------------------------------------------------------- */
+
+globalThis.ui = globalThis.ui ?? { notifications: { warn: () => {}, info: () => {} } };
+
+// (the read-only container maths — roll-up, capacity, harness, bowquiver — are
+// already covered above; these cover the new MUTATION and placement layer.)
+const { contentsOf, looseItems, containerChain, canStore, storeIn } =
+  await import(new URL("containers.mjs", S));
+const { wearLocation, wearBuckets } = await import(new URL("wear.mjs", S));
+const { WEAR } = await import(new URL("config.mjs", S));
+
+const torch = gear("Torch", 1, { id: "tor" });
+const packed = withItems([pack, rope, rations, torch]);
+
+check("contentsOf finds the stowed gear", contentsOf(packed, "bp").length === 2);
+check("looseItems excludes stowed gear", looseItems(packed).map((i) => i.id).sort().join() === "bp,tor");
+
+// Over capacity is a WARNING, never a block — RAW capacity does not alter weight.
+check("canStore still allows overfilling (capacity warns, never blocks)",
+  canStore(withItems([pack, ingots]), torch, pack).ok);
+
+// Nesting: a chest holding a backpack holding rations rolls all the way up.
+const chest = gear("Chest", 6, { id: "ch", flags: { container: { capacity: 20 } } });
+const innerPack = gear("Backpack", 1, { id: "bp2", flags: { container: { capacity: 4 }, containedIn: "ch" } });
+const inRations = gear("Rations", 6, { id: "r2", flags: { containedIn: "bp2" } });
+const nested = withItems([chest, innerPack, inRations]);
+check("nested contents roll up through the chain", contentsWeight6(nested, "ch") === 7);
+check("containerChain walks outward", containerChain(nested, inRations).map((c) => c.id).join() === "bp2,ch");
+check("a container may not go inside its own contents", !canStore(nested, innerPack, innerPack).ok);
+check("cycles are refused", !canStore(nested, chest, innerPack).ok);
+check("a legal nesting is allowed", canStore(nested, torch, innerPack).ok);
+check("an item cannot be put inside itself", !canStore(packed, pack, pack).ok);
+check("a non-container is not a valid target", !canStore(packed, torch, rope).ok);
+
+// The roll-up already guards against a data cycle (above); the chain walk needs
+// its own bound, or a sheet with corrupt flags would hang the client.
+check("containerChain terminates on a cycle", containerChain(withItems([loopA, loopB]), loopA).length <= 2);
+
+// storeIn: refuses the impossible, and takes worn gear off before stowing it.
+let stored = null;
+const wornCloak = { ...gear("Cloak", 1, { id: "cl", equipped: true }), update: async (u) => { stored = u; } };
+const stowActor = withItems([pack, wornCloak]);
+check("storeIn refuses a non-container target", (await storeIn(stowActor, wornCloak, torch)) === false);
+check("storeIn stows the item", (await storeIn(stowActor, wornCloak, pack)) === true);
+check("storeIn writes the containedIn flag", stored?.["flags.acks-equipment.containedIn"] === "bp");
+check("stowing worn gear unequips it first", stored?.["system.equipped"] === false);
+
+// The Container Manager's context is the whole feature's data path — build it.
+const { default: ContainerManager } = await import(new URL("apps/container-manager.mjs", S));
+const cmCtx = await new ContainerManager(packed, { id: "cm" })._prepareContext();
+check("container app lists the containers", cmCtx.containers.length === 1 && cmCtx.hasContainers);
+check("container app shows the load label", cmCtx.containers[0].label === "2 / 4 st");
+check("container app lists the contents", cmCtx.containers[0].contents.length === 2);
+check("container app lists loose gear separately", cmCtx.loose.map((i) => i.id).join() === "tor");
+check("container app flags gear whose name matches a RAW carrying device",
+  (await new ContainerManager(withItems([gear("Backpack", 1, { id: "b3" })]), { id: "cm2" })._prepareContext())
+    .loose[0].suggestible);
+
+// --- wear locations ---
+const helm = armor("Helmet", "light", { id: "hm" });
+const plate = armor("Plate Mail", "heavy", { id: "pm" });
+const shield = armor("Shield", "shield", { id: "sd" });
+const blade = weapon("Sword", { melee: true, id: "sw" });
+const offBlade = weapon("Dagger", { melee: true, id: "dg", flags: { hand: "off" } });
+const spare = weapon("Handaxe", { melee: true, id: "hx", equipped: false });
+const stowedRope = gear("Rope", 6, { id: "rp", flags: { containedIn: "bp" } });
+const dressed = withItems([helm, plate, shield, blade, offBlade, spare, pack, stowedRope]);
+const dLo = getLoadout(dressed);
+
+check("a helmet is worn on the head", wearLocation(dressed, helm, dLo) === WEAR.HEAD);
+check("a suit of armour is worn on the body", wearLocation(dressed, plate, dLo) === WEAR.BODY);
+check("a shield in hand is in the off hand", wearLocation(dressed, shield, dLo) === WEAR.OFF_HAND);
+check("an unflagged weapon is in the main hand", wearLocation(dressed, blade, dLo) === WEAR.MAIN_HAND);
+check("the hand flag puts a weapon in the off hand", wearLocation(dressed, offBlade, dLo) === WEAR.OFF_HAND);
+check("unequipped gear is merely carried", wearLocation(dressed, spare, dLo) === WEAR.CARRIED);
+check("gear inside a container is stowed", wearLocation(dressed, stowedRope, dLo) === WEAR.STOWED);
+
+// A lone medium weapon with both hands free is wielded two-handed (RR p. 299),
+// and the wear bucket must agree with the loadout that says so.
+const soloBlade = weapon("Sword", { melee: true, id: "sw2" });
+const twoHanded = withItems([soloBlade]);
+const tLo = getLoadout(twoHanded);
+check("the loadout wields a lone medium weapon two-handed", tLo.weapons[0].wieldTwoHanded);
+check("wear agrees: both hands", wearLocation(twoHanded, soloBlade, tLo) === WEAR.BOTH_HANDS);
+
+const buckets = wearBuckets(dressed, dLo);
+check("buckets are display-ordered head first", buckets[0].key === WEAR.HEAD);
+check("buckets omit empty locations", buckets.every((b) => b.items.length > 0));
+check("carried and stowed gear stays out of the worn buckets",
+  !buckets.some((b) => b.items.some((i) => i.id === "hx" || i.id === "rp")));
+check("every equipped item lands in exactly one bucket",
+  buckets.reduce((n, b) => n + b.items.length, 0) === 5);
 
 console.log(`test-logic: all ${pass} checks passed`);

@@ -1,4 +1,4 @@
-/* global game */
+/* global game, ui */
 /**
  * Containers — nested inventory with a RAW weight roll-up (RR pp. 142–145, 161;
  * acks-rules/acks-equipment/RULES.md §1/§3).
@@ -46,6 +46,102 @@ export function containedIn(item) {
 /** Items stored directly inside a container. */
 export function contentsOf(actor, containerId) {
   return actor.items.filter((i) => containedIn(i) === containerId);
+}
+
+/** Item types that can be put into a container. */
+export const STOWABLE_TYPES = Object.freeze(["item", "weapon", "armor", "money"]);
+
+/** Items carried loose — not inside anything (containers themselves included). */
+export function looseItems(actor) {
+  return actor.items.filter((i) => STOWABLE_TYPES.includes(i.type) && !containedIn(i));
+}
+
+/**
+ * The chain of containers an item sits inside, outermost last.
+ * Bounded by the item count so a pre-existing cycle in data cannot hang.
+ */
+export function containerChain(actor, item) {
+  const chain = [];
+  let cursor = containedIn(item);
+  for (let guard = actor.items.size; cursor && guard > 0; guard--) {
+    const next = actor.items.get(cursor);
+    if (!next || chain.includes(next)) break;
+    chain.push(next);
+    cursor = containedIn(next);
+  }
+  return chain;
+}
+
+/**
+ * Can `item` legally go into `container`? Capacity is deliberately NOT a
+ * blocker — RAW capacity is a warning (see the header), so overfilling is
+ * allowed and merely flagged. Structural impossibilities are blocked.
+ * @returns {{ok:boolean, reason?:string}}
+ */
+export function canStore(actor, item, container) {
+  if (!item || !container) return { ok: false, reason: "missing" };
+  if (!isContainer(container)) return { ok: false, reason: "notAContainer" };
+  if (item.id === container.id) return { ok: false, reason: "selfContained" };
+  if (!STOWABLE_TYPES.includes(item.type)) return { ok: false, reason: "notStowable" };
+  // A container may go inside another, but never inside itself transitively.
+  if (isContainer(item) && containerChain(actor, container).some((c) => c.id === item.id)) {
+    return { ok: false, reason: "cycle" };
+  }
+  return { ok: true };
+}
+
+/**
+ * Put an item into a container.
+ *
+ * Worn or wielded gear is not "stowed" — RAW you must take it off first — so an
+ * equipped item is unequipped as part of being stored. That update flows through
+ * the module's normal preUpdateItem/updateItem enforcement, so the loadout, the
+ * managed effect, and any Paper Doll slot all follow on their own.
+ *
+ * @returns {Promise<boolean>} whether the item moved
+ */
+export async function storeIn(actor, item, container) {
+  const check = canStore(actor, item, container);
+  if (!check.ok) {
+    if (check.reason !== "missing") warn(`storeFailed.${check.reason}`, { item: item?.name, container: container?.name });
+    return false;
+  }
+  if (containedIn(item) === container.id) return false; // already there
+  const updates = { [`flags.${MODULE_ID}.${ITEM_FLAGS.CONTAINED_IN}`]: container.id };
+  if (item.system?.equipped) updates["system.equipped"] = false;
+  await item.update(updates);
+  if (overCapacity(actor, container)) {
+    warn("overCapacity", { container: container.name, capacity: capacityStone(container) });
+  }
+  return true;
+}
+
+/** Take an item out of whatever container holds it. */
+export async function takeOut(item) {
+  if (!containedIn(item)) return false;
+  await item.unsetFlag(MODULE_ID, ITEM_FLAGS.CONTAINED_IN);
+  return true;
+}
+
+/**
+ * Emptying a container leaves its contents loose on the actor rather than
+ * deleting them — nothing is destroyed by a UI action.
+ */
+export async function emptyContainer(actor, container) {
+  const contents = contentsOf(actor, container.id);
+  if (!contents.length) return 0;
+  await actor.updateEmbeddedDocuments(
+    "Item",
+    contents.map((i) => ({ _id: i.id, [`flags.${MODULE_ID}.-=${ITEM_FLAGS.CONTAINED_IN}`]: null })),
+  );
+  return contents.length;
+}
+
+/** Localised notification helper; falls back to the key when unlocalised. */
+function warn(key, data = {}) {
+  const full = `ACKS-EQUIPMENT.container.${key}`;
+  const msg = game.i18n?.has?.(full) ? game.i18n.format(full, data) : full;
+  ui.notifications?.warn(msg);
 }
 
 /** Effective weight6 of one item, honouring quantity the way core does. */

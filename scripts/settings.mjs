@@ -76,11 +76,15 @@ export function registerSettings() {
   overlay(SETTINGS.OVERLAY_SHIELD_VARIANTS);
   overlay(SETTINGS.OVERLAY_MANEUVERS, true);
   overlay(SETTINGS.OVERLAY_ITEM_LOSS);
-  overlay(SETTINGS.OVERLAY_MOUNTED, true);
   overlay(SETTINGS.OVERLAY_NAMED);
   overlay(SETTINGS.OVERLAY_SCAVENGED);
-  overlay(SETTINGS.OVERLAY_BEASTMAN);
-  overlay(SETTINGS.OVERLAY_ENCLOSING_HELM, true);
+
+  // NOT REGISTERED — deliberately. OVERLAY_MOUNTED, OVERLAY_BEASTMAN, and
+  // OVERLAY_ENCLOSING_HELM have no implementation behind them: no code reads
+  // these keys. They were showing in the settings UI as working toggles that
+  // silently did nothing. The keys and their localised strings are kept so
+  // wiring them up is a one-line change once the overlays exist (mounted is
+  // blocked on there being any "mounted" state in the system at all).
 }
 
 /** Convenience getter. */

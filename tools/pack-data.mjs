@@ -46,49 +46,14 @@ new foundry.applications.api.DialogV2({ window: { title: \`Loadout — \${actor.
     _id: "acksEqContainer0",
     name: "Containers",
     img: "icons/containers/bags/pack-leather-brown.webp",
-    command: `// Popout container view: nested inventory with a RAW weight roll-up.
-// Contents stay real items flagged containedIn, so core's encumbrance already
-// counts them once (RR p. 161); the harness and bowquiver corrections are
-// applied by the module's encumbrance wrapper.
-const MOD = "acks-equipment";
-const api = game.modules.get(MOD)?.api ?? globalThis.acksEquipment;
+    command: `// Open the Container Manager: flag carrying devices from the RAW capacity
+// table, drag gear in and out of packs, and read the weight roll-up
+// (RR pp. 142-145, 161). Contents stay real items flagged containedIn, so
+// core's encumbrance already counts them exactly once.
+const api = game.modules.get("acks-equipment")?.api ?? globalThis.acksEquipment;
 if (!api) { ui.notifications.error("ACKS Equipment is not active."); return; }
 const actor = canvas.tokens.controlled[0]?.actor ?? game.user.character;
-if (!actor) { ui.notifications.warn("Select a token or assign a character."); return; }
-
-const report = api.containerReport(actor);
-if (!report.length) {
-  ui.notifications.warn("No containers on this character. Run the Annotate macro to flag backpacks, sacks, the adventurer's harness, and bowquivers from core's equipment pack.");
-  return;
-}
-const st = (w6) => (w6 / 6).toFixed(2).replace(/\\.00$/, "");
-const rows = report.map((c) => {
-  const contents = c.contents.length
-    ? c.contents.map((i) => \`<li>\${i.name} <span style="opacity:.7">(\${st(i.system.weight6 ?? 0)} st)</span></li>\`).join("")
-    : "<li><em>empty</em></li>";
-  const cap = c.capacityStone ? \`\${st(c.load6)} / \${c.capacityStone} st\` : \`\${st(c.load6)} st\`;
-  return \`<fieldset style="margin-bottom:.5rem">
-    <legend>\${c.item.name} — <strong style="color:\${c.over ? "var(--color-level-error,#b60205)" : "inherit"}">\${cap}</strong>\${c.over ? " (over capacity!)" : ""}</legend>
-    <ul style="margin:.25rem 0 0 1rem">\${contents}</ul>
-  </fieldset>\`;
-}).join("");
-const loose = actor.items.filter((i) => ["item", "weapon", "armor"].includes(i.type) && !i.getFlag(MOD, "containedIn") && !api.isContainer(i));
-const delta6 = api.encumbranceDelta6(actor);
-const note = delta6
-  ? \`<p><em>RAW corrections applied: \${st(Math.abs(delta6))} st \${delta6 < 0 ? "ignored" : "added"} (adventurer's harness / bowquiver).</em></p>\`
-  : "";
-const content = \`<div class="acks-equipment-loadout">
-  \${rows}
-  <p><b>Carried loose:</b> \${loose.length} item(s) · <b>Total encumbrance:</b> \${actor.system.encumbrance?.value ?? "?"} / \${actor.system.encumbrance?.max ?? "?"} st</p>
-  \${note}
-  <p style="opacity:.7;font-size:.9em">Put an item in a container by setting its <code>flags.\${MOD}.containedIn</code> to the container's id; clear it to take the item out.</p>
-</div>\`;
-new foundry.applications.api.DialogV2({
-  window: { title: \`Containers — \${actor.name}\` },
-  content,
-  buttons: [{ action: "ok", label: "Close", default: true }],
-  position: { width: 460 },
-}).render(true);`,
+api.openContainerManager(actor);`,
   },
   {
     _id: "acksEqItemLoss00",
@@ -266,17 +231,31 @@ ui.notifications.info(\`Saved proficiency profile for \${actor.name}.\`);`,
   },
   {
     _id: "acksEqAnnotate00",
-    name: "Annotate Weapons (RAW profiles)",
+    name: "Annotate Equipment (RAW profiles)",
     img: "icons/svg/book.svg",
-    command: `// Stamp acks-equipment size/hands/quality flags onto the selected actor's weapons
-// (or, with no selection, every weapon in the world) from the built-in RAW lookup.
+    command: `// Stamp acks-equipment RAW flags onto the selected actor's gear (or, with no
+// selection, everything in the world): weapon size/hands/qualities AND
+// carrying-device capacities (backpack, sack, saddlebag, bowquiver, the
+// adventurer's harness). Carrying devices are type "item", not "weapon" —
+// filtering to weapons alone meant containers could never be flagged at all.
 const api = game.modules.get("acks-equipment")?.api ?? globalThis.acksEquipment;
 if (!api) { ui.notifications.error("ACKS Equipment is not active."); return; }
 const actor = canvas.tokens.controlled[0]?.actor ?? game.user.character;
-const items = actor ? actor.items.filter((i) => i.type === "weapon") : game.items.filter((i) => i.type === "weapon");
-let n = 0;
-for (const it of items) { if (await api.annotateItem(it)) n++; }
-ui.notifications.info(\`Annotated \${n} weapon(s)\${actor ? " on " + actor.name : " in the world"}.\`);`,
+const ANNOTATABLE = ["weapon", "item"];
+const source = actor ? actor.items : game.items;
+// annotateItem returns null for anything with no RAW profile, so a broad
+// sweep is safe — it only writes where it recognises the gear.
+const items = source.filter((i) => ANNOTATABLE.includes(i.type));
+let weapons = 0;
+let containers = 0;
+for (const it of items) {
+  const key = await api.annotateItem(it);
+  if (!key) continue;
+  if (key === "container") containers++; else weapons++;
+}
+ui.notifications.info(
+  \`Annotated \${weapons} weapon(s) and \${containers} carrying device(s)\${actor ? " on " + actor.name : " in the world"}.\`
+);`,
   },
 ];
 
@@ -519,7 +498,7 @@ export function buildTraining() {
 
 // These AUGMENT core's acks-all-equipment rather than duplicate it: everything
 // here is content the core system does not ship. Ordinary RAW weapons/armour
-// stay in core and are upgraded in place by the "Annotate Weapons" macro.
+// stay in core and are upgraded in place by the "Annotate Equipment" macro.
 
 const SHIELD_VARIANTS = [
   { k: "buckler", n: "Buckler", w: 1, d: "A round shield up to 2' across. <strong>Only</strong> characters with Fighting Style Specialization (Weapon &amp; Shield) gain its +1 AC; others gain no benefit. Does not protect a vulnerable character. Encumbrance 1 item." },

@@ -13,6 +13,7 @@ import { buildApi } from "./api.mjs";
 import { onPreUpdateItem, onUpdateItem, refreshLoadout, primaryResponder, managesLoadout } from "./enforce.mjs";
 import { registerRollWrap } from "./roll-wrap.mjs";
 import { registerPaperDoll } from "./paperdoll.mjs";
+import { registerSheet } from "./sheet.mjs";
 import { advanceWieldedOnLevelUp } from "./overlays/named.mjs";
 
 /** True on exactly one client: the active GM responsible for automation. */
@@ -25,7 +26,10 @@ Hooks.once("init", () => {
   buildApi();
 
   try {
-    foundry.applications.handlebars.loadTemplates([`modules/${MODULE_ID}/templates/loadout-summary.hbs`]);
+    foundry.applications.handlebars.loadTemplates([
+      `modules/${MODULE_ID}/templates/loadout-summary.hbs`,
+      `modules/${MODULE_ID}/templates/container-manager.hbs`,
+    ]);
   } catch (err) {
     console.warn(`${MODULE_ID} | template preload skipped`, err);
   }
@@ -50,6 +54,15 @@ Hooks.once("ready", async () => {
     registerPaperDoll();
   } catch (err) {
     console.error(`${MODULE_ID} | paper-doll wiring failed`, err);
+  }
+
+  // Wear-location buckets on the core character sheet. Independent of the Paper
+  // Doll — the doll is an optional input device, the sheet is where every table
+  // already reads its gear.
+  try {
+    registerSheet();
+  } catch (err) {
+    console.error(`${MODULE_ID} | sheet integration failed`, err);
   }
 
   // Rebuild loadout effects for owned characters on load (repairs after config

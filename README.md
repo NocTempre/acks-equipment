@@ -34,6 +34,17 @@ enforces the RAW.
   STR), and the two-handed damage upsize. Loadout-level bonuses (style Specialization,
   dual-wield +1, Combat Reflexes, Swashbuckling) need no patch — they ride
   core's own `system.*.mod` fields via the loadout effect.
+- **Wear locations on the character sheet** — the Inventory tab regroups worn
+  gear by where it actually sits (Head, Body, Worn, Main Hand, Off Hand, Both
+  Hands, Strapped), plus a bucket per container, instead of core's flat
+  group-by-item-type. Core's own rows are *moved*, not rebuilt, so every control
+  on them keeps working. No Paper Doll required.
+- **Containers** — nested inventory with the RAW weight roll-up (RR pp. 142–145,
+  161). Contents stay real items on the actor, so core's encumbrance counts each
+  exactly once; only the two rules a flat sum gets wrong are corrected (the
+  adventurer's harness ignoring a stone, the bowquiver counting as two items).
+  The Container Manager flags carrying gear from the RAW capacity table, turns
+  any item into a container, and moves gear in and out by drag-and-drop.
 - **Draw / sheathe** — a macro applying the RAW action economy, free with
   Fighting Style Specialization.
 - **Paper Doll integration** — when theripper93's `fvtt-paper-doll-ui` is
@@ -41,8 +52,10 @@ enforces the RAW.
   drag-and-drop writes `system.equipped`, so the doll feeds the *same* RAW
   enforcement. Without it, the max-per-type fallback on the core inventory
   applies. Either way the rules are identical.
-- **Optional RAW overlays** *(Phase 5)* — shield variants, masterwork, maneuvers,
-  item loss, mounted saves, named items, scavenged, beastman gear — each a toggle.
+- **Optional RAW overlays** *(Phase 5)* — shield variants, combat maneuvers,
+  item loss, named magic items, scavenged equipment — each a toggle. Mounted
+  saves, beastman gear, and the enclosing helmet are **not** implemented; their
+  toggles are deliberately not registered rather than shown doing nothing.
 
 ## Requirements
 
@@ -64,14 +77,16 @@ npm run build:packs  # compile compendia to LevelDB
 | Pack | Contents |
 | --- | --- |
 | **Equipment & Combat Proficiencies** | 42 effect-carrying `ability` items — Fighting Style Specialization ×5, Weapon Focus ×6, Martial Training ×7, Combat Trickery ×7, Weapon Finesse, Precise Shooting, Armour Training, slayers, and more. Drag onto a character and the automation follows. |
-| **Equipment Samples** | Content core doesn't ship: the six JJ shield variants, masterwork exemplars, and a named magic weapon. Ordinary RAW gear stays in core's `acks-all-equipment` — the *Annotate Weapons* macro upgrades those in place. |
+| **Equipment Samples** | Content core doesn't ship: the six JJ shield variants, masterwork exemplars, and a named magic weapon. Ordinary RAW gear stays in core's `acks-all-equipment` — the *Annotate Equipment* macro upgrades those in place. |
 | **Sample Characters** | Four pre-wired demo characters (sword & board, two-handed, dual-wield thief, restricted mage), each demonstrating one rule end-to-end. |
-| **Equipment Macros** | Loadout Inspector, Annotate Weapons, Configure Proficiencies, Draw / Sheathe. |
+| **Equipment Macros** | Loadout Inspector, Annotate Equipment, Configure Proficiencies, Draw / Sheathe, Containers, and the overlay helpers. |
 
 Status: **Phases 1–5a complete** (loadout model, equip-limit enforcement, loadout
-effect, proficiency/skill enforcement, libWrapper roll integration, Paper Doll
-integration + fallback, and all four compendiums). Phase 5b (RAW optional-rule
-overlays) in progress; a full RAW equipment import is a separate effort.
+effect, proficiency/skill enforcement, libWrapper roll integration, character-sheet
+wear buckets, containers, Paper Doll integration + fallback, and all four
+compendiums). Phase 5b (RAW optional-rule overlays) in progress — three overlays
+remain unimplemented, listed above. A full RAW equipment import, market/purchasing,
+and mounted combat are separate efforts.
 
 ## License
 

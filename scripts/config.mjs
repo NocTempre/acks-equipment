@@ -184,3 +184,50 @@ export function containerProfileFor(name) {
 export function normalizeName(name) {
   return String(name ?? "").toLowerCase().replace(/[^a-z0-9]+/g, "");
 }
+
+/**
+ * WEAR LOCATIONS — the single canonical taxonomy of "where is this gear?".
+ *
+ * This used to be implied in three unrelated places (the Paper Doll slot
+ * layout, the per-item flags, and the derived buckets in getLoadout), which
+ * could disagree without anything noticing. Everything that groups gear by
+ * position now resolves through wear.mjs against these keys: the ACKS
+ * character sheet, the Paper Doll layout, and the loadout summary.
+ *
+ * Order is display order, head to foot then off-body.
+ */
+export const WEAR = Object.freeze({
+  HEAD: "head", // helmet
+  BODY: "body", // worn suit of armour
+  WORN: "worn", // clothing and other worn-but-not-armour gear
+  MAIN_HAND: "mainHand",
+  OFF_HAND: "offHand",
+  BOTH_HANDS: "bothHands", // a single weapon wielded two-handed
+  STRAPPED: "strapped", // shield slung to back or front (JJ variant overlay)
+  CARRIED: "carried", // on the character, not worn or wielded
+  STOWED: "stowed", // inside a container
+});
+
+/** Display order for the worn buckets (CARRIED/STOWED are handled separately). */
+export const WEAR_ORDER = Object.freeze([
+  WEAR.HEAD,
+  WEAR.BODY,
+  WEAR.WORN,
+  WEAR.MAIN_HAND,
+  WEAR.OFF_HAND,
+  WEAR.BOTH_HANDS,
+  WEAR.STRAPPED,
+]);
+
+/** Font Awesome icon per wear location, for sheet + app headers. */
+export const WEAR_ICONS = Object.freeze({
+  [WEAR.HEAD]: "fa-hat-wizard",
+  [WEAR.BODY]: "fa-shirt",
+  [WEAR.WORN]: "fa-mitten",
+  [WEAR.MAIN_HAND]: "fa-hand-fist",
+  [WEAR.OFF_HAND]: "fa-hand",
+  [WEAR.BOTH_HANDS]: "fa-hands",
+  [WEAR.STRAPPED]: "fa-shield-halved",
+  [WEAR.CARRIED]: "fa-sack-xmark",
+  [WEAR.STOWED]: "fa-box",
+});

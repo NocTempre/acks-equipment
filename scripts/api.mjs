@@ -14,7 +14,23 @@ import { planItemLoss, stonesAtRisk, isVulnerable, materialOf } from "./overlays
 import { maneuverMods, MANEUVERS } from "./overlays/maneuvers.mjs";
 import * as named from "./overlays/named.mjs";
 import { clearFromPaperDoll } from "./paperdoll.mjs";
-import { containerReport, contentsOf, contentsWeight6, overCapacity, isContainer, encumbranceDelta6 } from "./containers.mjs";
+import {
+  containerReport,
+  contentsOf,
+  contentsWeight6,
+  overCapacity,
+  isContainer,
+  encumbranceDelta6,
+  looseItems,
+  containerChain,
+  canStore,
+  storeIn,
+  takeOut,
+  emptyContainer,
+} from "./containers.mjs";
+// NOTE: circular by design (the app calls annotateItem). `annotateItem` is a
+// hoisted function declaration, so the app sees it even mid-evaluation.
+import { openContainerManager } from "./apps/container-manager.mjs";
 import { collectEffectModifiers, sumEffectModifiers, collectStringFlags, hasEffectFlag } from "./effects.mjs";
 import * as CONFIG_DATA from "./config.mjs";
 
@@ -90,6 +106,13 @@ export function buildApi() {
     overCapacity,
     isContainer,
     encumbranceDelta6,
+    looseItems,
+    containerChain,
+    canStore,
+    storeIn,
+    takeOut,
+    emptyContainer,
+    openContainerManager,
     // Effect contract
     collectEffectModifiers,
     sumEffectModifiers,
