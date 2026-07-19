@@ -8,6 +8,13 @@
         "veto": "Block the equip",
         "advisory": "Advisory only (never block)"
       },
+      "proficiencyEnforcement": {
+        "name": "Proficiency penalties",
+        "hint": "Whether weapon, armour, and fighting-style proficiency are enforced (Non-Proficient Use, RR p. 106). This module reads proficiency from its own actor flags; ACKS Abilities owns a richer model of the same facts, so while it is active a character built with it carries none of these flags and would be wrongly penalised. Leave on Automatic unless you know your characters carry this module's proficiency flags.",
+        "auto": "Automatic — off while ACKS Abilities is active (recommended)",
+        "on": "Always enforce (this module's flags are authoritative)",
+        "off": "Never enforce (equip limits and styles still apply)"
+      },
       "rollAutomation": {
         "name": "Automate attack/damage rolls",
         "hint": "Inject RAW fighting-style and proficiency modifiers into attack and damage rolls (Weapon Finesse, dual-wield, two-handed damage, Weapon Focus, Precise Shooting, non-proficiency). Requires libWrapper. Turn off to apply only always-on bonuses via the loadout effect."

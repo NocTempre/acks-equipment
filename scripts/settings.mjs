@@ -19,6 +19,21 @@ export function registerSettings() {
     default: ENFORCE.RESOLVE,
   });
 
+  game.settings.register(MODULE_ID, SETTINGS.PROFICIENCY_ENFORCEMENT, {
+    name: L("proficiencyEnforcement.name"),
+    hint: L("proficiencyEnforcement.hint"),
+    scope: "world",
+    config: true,
+    type: String,
+    choices: {
+      auto: L("proficiencyEnforcement.auto"),
+      on: L("proficiencyEnforcement.on"),
+      off: L("proficiencyEnforcement.off"),
+    },
+    default: "auto",
+    requiresReload: true,
+  });
+
   game.settings.register(MODULE_ID, SETTINGS.ROLL_AUTOMATION, {
     name: L("rollAutomation.name"),
     hint: L("rollAutomation.hint"),

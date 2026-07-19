@@ -11,9 +11,42 @@
  *   flags.acks-equipment.martialWeapons     (effect) CSV of added weapon categories
  *   flags.acks-equipment.armorTraining      (effect) integer categories added
  */
-import { MODULE_ID, ACTOR_FLAGS, EFFECT_DOMAINS } from "./constants.mjs";
+import { MODULE_ID, ACTOR_FLAGS, EFFECT_DOMAINS, SETTINGS, ABILITIES_ID } from "./constants.mjs";
 import { ARMOR_LADDER, ARMOR_GATED_SKILLS, ARMOR_GATE_MAX, normalizeName } from "./config.mjs";
 import { collectStringFlags, sumEffectModifiers, hasEffectFlag } from "./effects.mjs";
+
+/**
+ * KILL SWITCH — is proficiency ENFORCEMENT live?
+ *
+ * This module infers proficiency from its own `flags.acks-equipment.*` actor
+ * flags and effect markers. acks-abilities owns a richer model of the same
+ * facts (ability items with categories, grants, ranks, aliases). When it is
+ * installed the two disagree: a character whose proficiencies live in
+ * acks-abilities carries none of THIS module's flags, so `isWeaponProficient`
+ * falls through to its default and a correctly built character reads as
+ * NON-proficient — which since v0.13.0 triggers the full RR p. 106
+ * Non-Proficient Use package (attacks as a 0th-level fighter, no attribute
+ * bonus to attack or AC). That is a severe, silent penalty on a legal PC.
+ *
+ * Until the two models are reconciled, enforcement DEFAULTS OFF whenever
+ * acks-abilities is active. The `proficiencyEnforcement` setting overrides in
+ * both directions: "auto" (default), "on", "off".
+ *
+ * Scope: this disables the PENALTIES, not the module. Equip limits, fighting
+ * styles, containers, wear buckets, and the loadout effect are untouched —
+ * only proficiency-derived gating goes permissive.
+ */
+export function enforcementActive() {
+  let mode = "auto";
+  try {
+    mode = game.settings?.get?.(MODULE_ID, SETTINGS.PROFICIENCY_ENFORCEMENT) ?? "auto";
+  } catch {
+    // Settings not registered yet, or a bare harness — assume the default.
+  }
+  if (mode === "on") return true;
+  if (mode === "off") return false;
+  return !game.modules?.get?.(ABILITIES_ID)?.active; // "auto"
+}
 
 /** Ladder index of an armour category (higher = heavier); -1 if unknown. */
 export function armorRank(category) {
@@ -75,6 +108,7 @@ export function weaponProficiency(actor) {
 
 /** Is a weapon (resolved profile) one the actor is proficient with? */
 export function isWeaponProficient(actor, profile, prof = weaponProficiency(actor)) {
+  if (!enforcementActive()) return true; // kill switch: never penalise
   if (prof.all) return true;
   for (const token of prof.tokens) {
     if (grantMatches(token, profile)) return true;
@@ -107,6 +141,7 @@ export function armorMax(actor) {
 
 /** Is a worn armour item within the actor's proficiency? Shields are style-gated. */
 export function isArmorProficient(actor, armorItem, max = armorMax(actor)) {
+  if (!enforcementActive()) return true; // kill switch: never penalise
   const cat = armorItem?.system?.type;
   if (!cat || cat === "shield") return true;
   const r = armorRank(cat);

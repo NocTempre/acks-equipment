@@ -86,6 +86,11 @@ export const ACTOR_FLAGS = Object.freeze({
 /** World/client settings keys. */
 export const SETTINGS = Object.freeze({
   ENFORCE_MODE: "enforceMode", // "resolve" | "veto" | "advisory"
+  // Kill switch for proficiency-derived penalties: "auto" | "on" | "off".
+  // "auto" disables them while acks-abilities is active — it owns a richer
+  // model of the same facts, and this module's flags are absent on characters
+  // built with it. See proficiency.mjs enforcementActive().
+  PROFICIENCY_ENFORCEMENT: "proficiencyEnforcement",
   ROLL_AUTOMATION: "rollAutomation", // wrap rollAttack/rollWeapon
   PAPERDOLL_STRATEGY: "paperdollStrategy", // "auto" | "paperdoll" | "fallback"
   PAPERDOLL_CONFIGURED: "paperdollConfigured", // internal: slot layout pushed once; never clobber GM edits
@@ -134,4 +139,7 @@ export const LOADOUT_EFFECT_FLAG = "loadout"; // flags.acks-equipment.loadout = 
 
 /** Paper Doll module id + the flag/hook names it exposes. */
 export const PAPERDOLL_ID = "fvtt-paper-doll-ui";
+
+/** Sibling module owning the richer proficiency/ability model (kill switch). */
+export const ABILITIES_ID = "acks-abilities";
 export const PAPERDOLL_HOOKS = Object.freeze({ EQUIP: "paper-doll-equip", SWAP: "paper-doll-swap" });

@@ -782,4 +782,64 @@ check("carried and stowed gear stays out of the worn buckets",
 check("every equipped item lands in exactly one bucket",
   buckets.reduce((n, b) => n + b.items.length, 0) === 5);
 
+/* ---------------------------------------------------------------------- */
+/*  Proficiency kill switch (acks-abilities interop)                        */
+/* ---------------------------------------------------------------------- */
+
+// This module infers proficiency from its OWN actor flags. acks-abilities owns
+// a richer model of the same facts, so a character built with it carries none
+// of these flags and would read as non-proficient — triggering the full RR
+// p. 106 package on a legal PC. Enforcement must default OFF while it is active.
+const { enforcementActive } = await import(new URL("proficiency.mjs", S));
+
+// A bare unconfigured actor with a weapon its (absent) flags don't cover.
+const unconfigured = () => withItems([weapon("Halberd", { melee: true, id: "hb" })]);
+
+const setModules = (activeIds) => {
+  globalThis.game.modules = { get: (id) => ({ active: activeIds.includes(id) }) };
+};
+const setMode = (mode) => {
+  const base = globalThis.game.settings.get;
+  globalThis.game.settings.get = (m, k) =>
+    k === "proficiencyEnforcement" ? mode : base(m, k);
+};
+
+// Baseline: no acks-abilities → enforcement live, penalties as before.
+setModules([]);
+setMode("auto");
+check("auto + abilities absent → enforcement LIVE", enforcementActive());
+check("baseline: unconfigured actor is still gated", getLoadout(unconfigured()).nonProficientUse);
+
+// The hotfix: acks-abilities present → penalties off, no silent 0th-level hit.
+setModules(["acks-abilities"]);
+check("auto + abilities ACTIVE → enforcement OFF", !enforcementActive());
+const freed = getLoadout(unconfigured());
+check("kill switch clears nonProficientUse", !freed.nonProficientUse);
+check("kill switch reports weapons proficient", freed.weapons.every((w) => w.proficient));
+check("kill switch reports the style trained", freed.styleProficient);
+check("kill switch raises no proficiency violations",
+  !freed.violations.some((v) => ["weaponNotProficient", "armorNotProficient", "styleNotProficient", "nonProficientUse"].includes(v.type)));
+// The attack package is what actually hurt a PC — prove it is gone.
+const freedMods = computeAttackMods(
+  { ...freed, ...unconfigured(), type: "character", system: { details: { level: 5 }, thac0: { bba: 3 }, scores: { str: { mod: 2 } } } },
+  { item: { _id: "hb", system: { bonus: 0 } } },
+  { type: "melee" },
+);
+check("kill switch removes the attack degradation", !freedMods || freedMods.bonusDelta === 0);
+
+// Equip limits are NOT proficiency — they must survive the kill switch.
+const overloaded2 = withItems([weapon("Sword", { melee: true, id: "s1" }), weapon("Axe", { melee: true, id: "s2" }), weapon("Mace", { melee: true, id: "s3" })]);
+check("kill switch does NOT disable hand-limit enforcement",
+  getLoadout(overloaded2).violations.some((v) => v.type === "handOverflow"));
+
+// Explicit overrides win in both directions.
+setMode("on");
+check("mode 'on' enforces even with abilities active", enforcementActive());
+setModules([]);
+setMode("off");
+check("mode 'off' disables even with abilities absent", !enforcementActive());
+
+// Restore defaults for anything that runs later.
+setMode("auto");
+
 console.log(`test-logic: all ${pass} checks passed`);

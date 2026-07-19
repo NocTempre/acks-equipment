@@ -10,7 +10,7 @@ import { STYLE } from "./config.mjs";
 import { classifyWeapon, handCost, inferStyle, canOneHand } from "./profiles.mjs";
 import { collectStringFlags, sumEffectModifiers } from "./effects.mjs";
 import { EFFECT_DOMAINS } from "./constants.mjs";
-import { weaponProficiency, isWeaponProficient, armorMax, isArmorProficient, thiefSkillsGated, swashbucklingAC } from "./proficiency.mjs";
+import { weaponProficiency, isWeaponProficient, armorMax, isArmorProficient, thiefSkillsGated, swashbucklingAC, enforcementActive } from "./proficiency.mjs";
 import { occupiesHand } from "./overlays/shield-variants.mjs";
 
 /** Violation type keys (for i18n + auto-resolve). */
@@ -124,7 +124,11 @@ export function getLoadout(actor, opts = {}) {
 
   const trained = trainedStyles(actor);
   const spec = specializedStyles(actor);
-  const styleProficient = trained.has(activeStyle?.toLowerCase());
+  // Style training reads the same module-owned flags as weapon/armour
+  // proficiency, so it falls under the same kill switch: with acks-abilities
+  // installed those flags are absent on a correctly built character and every
+  // style would read as untrained, triggering Non-Proficient Use.
+  const styleProficient = !enforcementActive() || trained.has(activeStyle?.toLowerCase());
 
   // --- Violations -------------------------------------------------------
   const violations = [];
