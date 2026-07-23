@@ -842,4 +842,84 @@ check("mode 'off' disables even with abilities absent", !enforcementActive());
 // Restore defaults for anything that runs later.
 setMode("auto");
 
+/* ---------------------------------------------------------------------- */
+/*  Abilities bridge — proficiency facts FROM the acks-abilities model      */
+/* ---------------------------------------------------------------------- */
+
+const { hasEffectFlag, sumEffectModifiers } = await import(new URL("effects.mjs", S));
+const { trainedStyles, specializedStyles } = await import(new URL("loadout.mjs", S));
+const { resolveStylePick, resolveWeaponGroupPick, resolveFocusPick } =
+  await import(new URL("abilities-bridge.mjs", S));
+
+/** An abilities-modelled ability item: cookbook id + extras, NO native AEs. */
+const abil = (name, defId, extras = {}, over = {}) => ({
+  id: over.id ?? name.replace(/\W/g, ""),
+  name,
+  type: "ability",
+  system: {},
+  flags: {
+    ...(defId ? { "acks-content": { cookbook: { id: defId } } } : {}),
+    "acks-abilities": { extras },
+  },
+  getFlag: () => undefined,
+  effects: over.effects ?? [],
+});
+
+// Presence via cookbook id → boolean domain (no equipment flags anywhere).
+const finesseChar = withItems([abil("Weapon Finesse", "def.prof.weaponFinesse")]);
+check("bridge: cookbook id flips the finesse domain", hasEffectFlag(finesseChar, "finesse"));
+check("bridge: absent ability, absent domain", !hasEffectFlag(withItems([]), "finesse"));
+
+// FSS with a stored pick → trained AND specialized in that style, without any
+// flags.acks-equipment.* data — the exact character the kill switch protected.
+const fss = abil("Fighting Style Specialization", "def.prof.fightingStyleSpecialization", { selections: ["Two-Handed"] });
+const fssChar = withItems([fss, weapon("Sword", { melee: true, id: "fsw" })]);
+check("bridge: FSS pick trains the style", trainedStyles(fssChar).has("twohanded"));
+check("bridge: FSS pick specializes the style", specializedStyles(fssChar).has("twohanded"));
+check("bridge: FSS character is styleProficient under FULL enforcement",
+  getLoadout(fssChar).styleProficient && getLoadout(fssChar).nonProficientUse === false);
+
+// Martial Training pick widens weapon proficiency under full enforcement.
+// (Actor narrowed to swords so the test cannot pass vacuously.)
+const mtChar = withItems([abil("Martial Training", "def.prof.martialTraining", { selections: ["Axes"] })]);
+mtChar.getFlag = (_m, k) => (k === "weaponProficiency" ? "swordDagger" : undefined);
+check("bridge: Martial Training (Axes) grants the axe category",
+  isWeaponProficient(mtChar, classifyWeapon(weapon("Battle Axe", { melee: true }))));
+const noMt = withItems([]);
+noMt.getFlag = (_m, k) => (k === "weaponProficiency" ? "swordDagger" : undefined);
+check("bridge: without it the axe stays non-proficient",
+  !isWeaponProficient(noMt, classifyWeapon(weapon("Battle Axe", { melee: true }))));
+
+// Armour Training: each rank raises the wearable category one step.
+const atChar = withItems([abil("Armor Training", "def.prof.armorTraining", { qty: 2 })]);
+atChar.getFlag = (_m, k) => (k === "armorMax" ? "light" : undefined);
+check("bridge: Armor Training rank 2 raises light → heavy", armorMax(atChar) === "heavy");
+check("bridge: US and UK spellings both resolve",
+  sumEffectModifiers(withItems([abil("Armour Training", null, { qty: 1 })]), "armorTraining") === 1);
+
+// Name-suffix fallback: a hand-made item with no extras still carries its pick.
+const suffix = withItems([abil("Martial Training (Axes)", null, {})]);
+suffix.getFlag = (_m, k) => (k === "weaponProficiency" ? "swordDagger" : undefined);
+check("bridge: '(X)' name suffix works with no stored selections",
+  isWeaponProficient(suffix, classifyWeapon(weapon("Battle Axe", { melee: true }))));
+
+// Dedup: an item speaking the native effect language stands aside — its AE
+// counts once, the bridge adds nothing on top.
+const nativeReflexes = abil("Combat Reflexes", null, {}, {
+  effects: [{ changes: [{ key: "flags.acks-equipment.styleInit", value: "1" }] }],
+});
+const reflexChar = withItems([nativeReflexes]);
+reflexChar.appliedEffects = [marker("styleInit", 1)];
+check("bridge: native-effect items are not double-counted",
+  sumEffectModifiers(reflexChar, "styleInit") === 1);
+// The same ability WITHOUT native effects bridges to the same value.
+check("bridge: pure abilities item contributes the same +1",
+  sumEffectModifiers(withItems([abil("Combat Reflexes", null, {})]), "styleInit") === 1);
+
+// Pick resolvers.
+check("resolveStylePick handles 'Weapon and Shield'", resolveStylePick("Weapon and Shield") === "weaponshield");
+check("resolveWeaponGroupPick: crossbows before bows", resolveWeaponGroupPick("Crossbows") === "crossbow");
+check("resolveWeaponGroupPick: a named weapon passes through", resolveWeaponGroupPick("Sword") === "sworddagger" || resolveWeaponGroupPick("Whip") === "whip");
+check("resolveFocusPick maps bows and crossbows together", resolveFocusPick("Bows & Crossbows") === "bowscrossbows");
+
 console.log(`test-logic: all ${pass} checks passed`);

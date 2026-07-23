@@ -14,6 +14,7 @@
 import { EFFECT_PREFIX, MODULE_ID, EFFECT_DOMAINS, LOADOUT_EFFECT_NAME, LOADOUT_EFFECT_FLAG } from "./constants.mjs";
 import { STYLE_SPEC_BONUS, STYLE, DUAL_WIELD_ATTACK_BONUS } from "./config.mjs";
 import { shieldACCorrection, specApplies } from "./overlays/shield-variants.mjs";
+import { bridgeContributions } from "./abilities-bridge.mjs";
 
 /** All active effects on the actor, tolerant of Foundry version differences. */
 function appliedEffects(actor) {
@@ -63,6 +64,18 @@ export function collectEffectModifiers(actor, domain) {
       });
     }
   }
+  // Abilities-modelled items contribute through the bridge (never both ways —
+  // the bridge stands aside for items carrying native effect changes).
+  for (const c of bridgeContributions(actor).numeric.get(domain) ?? []) {
+    found.push({
+      id: `bridge-${domain}-${found.length}`,
+      label: c.label,
+      value: c.value,
+      situational: false,
+      condition: null,
+      source: "abilities",
+    });
+  }
   return found;
 }
 
@@ -73,14 +86,15 @@ export function sumEffectModifiers(actor, domain) {
     .reduce((sum, m) => sum + m.value, 0);
 }
 
-/** True when any active effect contributes to the domain. */
+/** True when any active effect — or a bridged ability — contributes to the domain. */
 export function hasEffectFlag(actor, domain) {
   const key = `${EFFECT_PREFIX}${domain}`;
   for (const effect of appliedEffects(actor)) {
     if (effect.disabled) continue;
     if ((effect.changes ?? []).some((c) => c.key === key)) return true;
   }
-  return false;
+  const bridged = bridgeContributions(actor);
+  return bridged.booleans.has(domain) || bridged.numeric.has(domain) || bridged.strings.has(domain);
 }
 
 /** Collect CSV string flags of a domain into a lowercased Set. */
@@ -98,6 +112,7 @@ export function collectStringFlags(actor, domain) {
         .forEach((s) => out.add(s));
     }
   }
+  for (const token of bridgeContributions(actor).strings.get(domain) ?? []) out.add(token);
   return out;
 }
 

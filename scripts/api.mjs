@@ -32,6 +32,7 @@ import {
 // hoisted function declaration, so the app sees it even mid-evaluation.
 import { openContainerManager } from "./apps/container-manager.mjs";
 import { collectEffectModifiers, sumEffectModifiers, collectStringFlags, hasEffectFlag } from "./effects.mjs";
+import { bridgeContributions } from "./abilities-bridge.mjs";
 import * as CONFIG_DATA from "./config.mjs";
 
 /**
@@ -118,6 +119,7 @@ export function buildApi() {
     sumEffectModifiers,
     collectStringFlags,
     hasEffectFlag,
+    bridgeContributions, // proficiency facts read from the acks-abilities model
     EFFECT_DOMAINS,
     // Data + constants
     config: CONFIG_DATA,

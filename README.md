@@ -19,6 +19,14 @@ enforces the RAW.
 - **Fighting styles** — infers Single / Dual / Two-Handed / Weapon & Shield /
   Missile from the loadout; applies Fighting Style Specialization bonuses via the
   loadout Active Effect (AC, initiative, attack, damage) into core's `system.*.mod`.
+- **ACKS Abilities bridge** — characters built with the acks-abilities /
+  acks-content model (generic ability items with recorded picks) feed the same
+  automation: Weapon Finesse, a Specialization's style, Martial Training's
+  weapon group, Armour Training ranks, Weapon Focus, and Combat Trickery
+  maneuvers all resolve from that model. Deliberately asymmetric: bridged
+  facts grant bonuses and training, but Non-Proficient Use penalties stay off
+  under the Automatic setting, because the abilities model cannot yet express
+  class training lists and absence must not read as untrained.
 - **Proficiency & skill integration** — weapon/armour/fighting-style proficiency
   and thief-skill armour gates, driven by effect flags on `ability` items. Ships
   42 combat/equipment proficiencies (Fighting Style Specialization, Weapon Finesse,

@@ -10,10 +10,10 @@
       },
       "proficiencyEnforcement": {
         "name": "Proficiency penalties",
-        "hint": "Whether weapon, armour, and fighting-style proficiency are enforced (Non-Proficient Use, RR p. 106). This module reads proficiency from its own actor flags; ACKS Abilities owns a richer model of the same facts, so while it is active a character built with it carries none of these flags and would be wrongly penalised. Leave on Automatic unless you know your characters carry this module's proficiency flags.",
-        "auto": "Automatic — off while ACKS Abilities is active (recommended)",
+        "hint": "Whether weapon, armour, and fighting-style proficiency PENALTIES are enforced (Non-Proficient Use, RR p. 106). Positive facts from ACKS Abilities characters — Weapon Finesse, a Specialization's style, Martial/Armour Training picks, Weapon Focus — always apply through the bridge regardless of this setting. Automatic keeps the penalties off while ACKS Abilities is active, because its model cannot yet express class weapon/armour training lists and absence of a fact must not read as untrained.",
+        "auto": "Automatic — penalties off while ACKS Abilities is active; bridged bonuses still apply (recommended)",
         "on": "Always enforce (this module's flags are authoritative)",
-        "off": "Never enforce (equip limits and styles still apply)"
+        "off": "Never enforce (equip limits, styles, and bridged bonuses still apply)"
       },
       "rollAutomation": {
         "name": "Automate attack/damage rolls",
