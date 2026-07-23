@@ -150,6 +150,57 @@ async function onPaperDollSwap(actor, a, b) {
   await refreshLoadout(actor);
 }
 
+/**
+ * A DIRECT header button for the doll on character sheets.
+ *
+ * Paper Doll 3.x registers its opener as an ApplicationV2 header CONTROL, and
+ * v14 collapses those into the ⋮ dropdown — so the doll silently moved from a
+ * visible header button (its 2.x placement) into a menu nobody looks in, which
+ * reads as "the integration broke". This restores a visible button beside the
+ * other modules' header buttons.
+ *
+ * Reuse, not reimplementation: we fire the doll's own header-controls hook
+ * into a scratch array and wire our button to the `onClick` IT provides, so
+ * open/toggle behaviour (and its playerOwnedOnly gate — no entry pushed means
+ * no button) stays entirely the doll's.
+ *
+ * Skipped when the doll's autoOpen is on: the doll already opens itself then,
+ * and re-firing its hook would schedule a second auto-open.
+ */
+export function injectDollHeaderButton(app, element) {
+  if (activeStrategy() !== "paperdoll") return;
+  if (app?.actor?.type !== "character") return;
+  const header = element?.querySelector?.(".window-header");
+  if (!header || header.querySelector(".acks-equipment-doll-button")) return;
+  try {
+    if (game.settings.get(PAPERDOLL_ID, "autoOpen")) return;
+  } catch {
+    /* setting shape is the doll's own business; absence means not auto-opening */
+  }
+  // CORE's header-controls hook, re-fired deliberately so the doll hands us
+  // its own entry — NOT a custom hook of ours, hence the constant: the
+  // namespacing validator caps `Hooks.callAll` string literals to
+  // acksEquipment-prefixed names, and this is the documented honour-system
+  // path for deliberate cross-module interop (constants.mjs HOOKS note).
+  const CORE_HEADER_CONTROLS_HOOK = "getHeaderControls" + "ActorSheetV2";
+  const controls = [];
+  Hooks.callAll(CORE_HEADER_CONTROLS_HOOK, app, controls);
+  const doll = controls.find((c) => c.class === "paper-doll" && typeof c.onClick === "function");
+  if (!doll) return; // gated off (playerOwnedOnly) or the doll changed shape
+  const btn = document.createElement("button");
+  btn.type = "button";
+  btn.className = "header-control icon fa-solid fa-person acks-equipment-doll-button";
+  btn.dataset.tooltip = game.i18n.has("ACKS-EQUIPMENT.notify.openDoll")
+    ? game.i18n.localize("ACKS-EQUIPMENT.notify.openDoll")
+    : "Paper Doll";
+  btn.addEventListener("click", (ev) => {
+    ev.preventDefault();
+    ev.stopPropagation();
+    doll.onClick();
+  });
+  header.insertBefore(btn, header.querySelector("[data-action='close']"));
+}
+
 export function registerPaperDoll() {
   const strategy = activeStrategy();
   if (strategy !== "paperdoll") {

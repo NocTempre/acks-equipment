@@ -25,6 +25,7 @@ import { getLoadout } from "./loadout.mjs";
 import { wearBuckets, wearLabel } from "./wear.mjs";
 import { containerReport, STONE } from "./containers.mjs";
 import { openContainerManager } from "./apps/container-manager.mjs";
+import { injectDollHeaderButton } from "./paperdoll.mjs";
 
 /** Stone display shared with the container app. */
 function st(weight6) {
@@ -156,6 +157,8 @@ function regroup(actor, tab) {
 function onRenderCharacterSheet(app, element) {
   try {
     if (app?.actor?.type !== "character") return;
+    // Restore a visible Paper Doll button (self-guards on strategy + settings).
+    injectDollHeaderButton(app, element);
     const tab = element?.querySelector?.(".sheet-inventory");
     // Dedupe: ApplicationV2 fires a render hook per class in the chain, and we
     // listen on three of them so the system's class name can change freely.
