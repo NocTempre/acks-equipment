@@ -1,4 +1,4 @@
-/* global game, Hooks, ui, foundry */
+/* global game, Hooks, ui, foundry, fromUuidSync, document */
 /**
  * Paper Doll integration (theripper93's `fvtt-paper-doll-ui`), with a
  * max-per-type fallback when it is absent.
@@ -22,6 +22,7 @@
 import { MODULE_ID, SETTINGS, PAPERDOLL_ID, PAPERDOLL_HOOKS, ITEM_FLAGS } from "./constants.mjs";
 import { WEAR } from "./config.mjs";
 import { refreshLoadout } from "./enforce.mjs";
+import { wearLocation } from "./wear.mjs";
 
 /** Which hand a Paper Doll slot represents (drives dual-wield vs two-handed). */
 const HAND_BY_SLOT = Object.freeze({ MAIN_RIGHT: "main", MAIN_LEFT: "off" });
@@ -133,13 +134,126 @@ export async function clearFromPaperDoll(actor, item) {
   return changed;
 }
 
-/** Any unequip — sheet toggle, auto-resolve, or macro — empties the doll slot. */
-async function onItemUnequipped(item, changes) {
+/* ---------------------------------------------------------------------- */
+/*  Sheet → doll mirroring                                                 */
+/*                                                                         */
+/*  With the doll active it must ALWAYS match the sheet: equip or unequip  */
+/*  on either side updates the other. Doll → sheet already flows through   */
+/*  EQUIPPED_PATH; this half places sheet-equipped gear into slots and     */
+/*  reconciles the whole doll from the actor's real equipped state.        */
+/* ---------------------------------------------------------------------- */
+
+/**
+ * Which doll slot a sheet-equipped item belongs in — derived from the SAME
+ * wear taxonomy the sheet buckets use (wear.mjs), so the doll and the sheet
+ * cannot disagree about where a thing sits. Pure planning: no writes.
+ *
+ * @param {Actor} actor
+ * @param {Item} item
+ * @param {object} slots       the doll's slots flag (may be stale)
+ * @param {(uuid:string)=>Item|null} resolve  uuid → item (injectable for tests)
+ * @returns {string|null} a slot id, or null when nothing fits (strapped
+ *   shields have no doll slot; a fully occupied region is left alone rather
+ *   than displacing what the player placed)
+ */
+export function planDollSlot(actor, item, slots, resolve) {
+  // A slot is free if empty, already ours, or holding a stale reference
+  // (unequipped or deleted occupant) that reconciliation will clear anyway.
+  const free = (slotId) => {
+    const uuid = slots?.[slotId]?.[0];
+    if (!uuid || uuid === item.uuid) return slotId;
+    const occupant = resolve(uuid);
+    return occupant && occupant.parent?.id === actor.id && occupant.system?.equipped ? null : slotId;
+  };
+  const where = wearLocation(actor, item);
+  switch (where) {
+    case WEAR.HEAD:
+      return free("HEAD");
+    case WEAR.BODY:
+      return free("BODY");
+    case WEAR.MAIN_HAND:
+    case WEAR.BOTH_HANDS:
+      return free("MAIN_RIGHT") ?? free("MAIN_LEFT");
+    case WEAR.OFF_HAND:
+      return free("MAIN_LEFT") ?? free("MAIN_RIGHT");
+    case WEAR.WORN: {
+      // Three clothing slots; route by name where the name says, else first free.
+      const n = String(item.name ?? "").toLowerCase();
+      if (/boot|sandal|shoe/.test(n)) return free("BOOTS") ?? free("CAPE") ?? free("GLOVES");
+      if (/glove|gauntlet|mitt/.test(n)) return free("GLOVES") ?? free("CAPE") ?? free("BOOTS");
+      return free("CAPE") ?? free("GLOVES") ?? free("BOOTS");
+    }
+    default:
+      return null; // strapped / carried / stowed — not on the doll
+  }
+}
+
+/** Default occupant resolver (split out so the planner is testable). */
+function resolveUuid(uuid) {
+  try {
+    return typeof fromUuidSync === "function" ? (fromUuidSync(uuid) ?? null) : null;
+  } catch {
+    return null;
+  }
+}
+
+/**
+ * Place a sheet-equipped item into the doll. Deferred one beat: when the
+ * EQUIP came from the doll itself, its own slots write lands first and this
+ * becomes a no-op (the uuid is already placed), so the two writers cannot
+ * fight over slot choice.
+ */
+async function placeInPaperDoll(actor, item) {
+  await new Promise((r) => setTimeout(r, 150));
+  if (!item.system?.equipped) return false; // changed again while we waited
+  const slots = foundry.utils.deepClone(actor.getFlag(PAPERDOLL_ID, "slots") ?? {});
+  for (const entries of Object.values(slots)) {
+    if (entries && typeof entries === "object" && Object.values(entries).includes(item.uuid)) return false;
+  }
+  const target = planDollSlot(actor, item, slots, resolveUuid);
+  if (!target) return false;
+  slots[target] = { ...(slots[target] ?? {}), 0: item.uuid };
+  await actor.setFlag(PAPERDOLL_ID, "slots", slots);
+  // The same hand bookkeeping the doll's own drop performs.
+  await setHandFlag(item, target, true);
+  return true;
+}
+
+/**
+ * Reconcile one actor's doll to the sheet's truth: stale slot entries
+ * (unequipped, deleted, foreign) are cleared, every equipped wearable is
+ * placed. Converges: a second run makes no writes.
+ */
+export async function syncActorToDoll(actor) {
+  if (actor?.type !== "character" || !actor.isOwner) return;
+  const slots = foundry.utils.deepClone(actor.getFlag(PAPERDOLL_ID, "slots") ?? {});
+  let changed = false;
+  for (const [slotId, entries] of Object.entries(slots)) {
+    if (!entries || typeof entries !== "object") continue;
+    for (const [index, uuid] of Object.entries(entries)) {
+      if (!uuid) continue;
+      const occupant = resolveUuid(uuid);
+      if (!occupant || occupant.parent?.id !== actor.id || !occupant.system?.equipped) {
+        slots[slotId][index] = null; // the doll's own clear convention
+        changed = true;
+      }
+    }
+  }
+  if (changed) await actor.setFlag(PAPERDOLL_ID, "slots", slots);
+  for (const item of actor.items) {
+    if (!item.system?.equipped) continue;
+    if (item.type !== "weapon" && item.type !== "armor" && item.type !== "item") continue;
+    await placeInPaperDoll(actor, item);
+  }
+}
+
+/** Sheet equip/unequip — mirror it onto the doll, whichever way it went. */
+async function onItemEquippedChanged(item, changes) {
   if (!foundry.utils.hasProperty(changes, "system.equipped")) return;
-  if (foundry.utils.getProperty(changes, "system.equipped")) return; // equips are handled by the doll itself
   const actor = item?.parent;
   if (actor?.documentName !== "Actor" || !actor.isOwner) return;
-  await clearFromPaperDoll(actor, item);
+  if (foundry.utils.getProperty(changes, "system.equipped")) await placeInPaperDoll(actor, item);
+  else await clearFromPaperDoll(actor, item);
 }
 
 async function onPaperDollSwap(actor, a, b) {
@@ -214,13 +328,36 @@ export function registerPaperDoll() {
   Hooks.on(PAPERDOLL_HOOKS.SWAP, (actor, a, b) =>
     onPaperDollSwap(actor, a, b).catch((err) => console.error(`${MODULE_ID} | paper-doll-swap failed`, err)),
   );
-  // Core sheet → doll: keep the doll in step when gear is unequipped elsewhere.
+  // Sheet ↔ doll mirror: any equipped change on either side updates the other.
   Hooks.on("updateItem", (item, changes) =>
-    onItemUnequipped(item, changes).catch((err) => console.error(`${MODULE_ID} | paper-doll unequip sync failed`, err)),
+    onItemEquippedChanged(item, changes).catch((err) => console.error(`${MODULE_ID} | paper-doll sync failed`, err)),
   );
+  // An item created already-equipped (compendium import, duplication) lands on
+  // the doll too; a deleted one leaves no stale slot behind.
+  Hooks.on("createItem", (item) => {
+    if (!item?.system?.equipped || item.parent?.documentName !== "Actor" || !item.parent.isOwner) return;
+    placeInPaperDoll(item.parent, item).catch((err) => console.error(`${MODULE_ID} | paper-doll create sync failed`, err));
+  });
+  Hooks.on("deleteItem", (item) => {
+    const actor = item?.parent;
+    if (actor?.documentName !== "Actor" || !actor.isOwner) return;
+    clearFromPaperDoll(actor, item).catch((err) => console.error(`${MODULE_ID} | paper-doll delete sync failed`, err));
+  });
+  // Opening the doll reconciles it to the sheet's truth, so it can never show
+  // a stale picture no matter what happened while it was closed. Converges:
+  // the second pass writes nothing, so render → sync → render terminates.
+  Hooks.on("renderPaperDoll", (app) => {
+    const actor = app?.actor;
+    if (actor) syncActorToDoll(actor).catch((err) => console.error(`${MODULE_ID} | paper-doll reconcile failed`, err));
+  });
 
   if (game.user.isGM && !game.settings.get(MODULE_ID, SETTINGS.PAPERDOLL_CONFIGURED)) {
     configurePaperDoll().catch((err) => console.error(`${MODULE_ID} | Paper Doll configuration failed`, err));
   }
-  console.debug(`${MODULE_ID} | Paper Doll integration active.`);
+  // One reconciliation pass over owned characters at startup: gear equipped
+  // while the doll was absent (or before this version) appears on it.
+  for (const actor of game.actors?.filter?.((a) => a.type === "character" && a.isOwner) ?? []) {
+    syncActorToDoll(actor).catch((err) => console.error(`${MODULE_ID} | initial doll sync failed for ${actor.name}`, err));
+  }
+  console.debug(`${MODULE_ID} | Paper Doll integration active (sheet ↔ doll mirror).`);
 }

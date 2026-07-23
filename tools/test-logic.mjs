@@ -922,4 +922,36 @@ check("resolveWeaponGroupPick: crossbows before bows", resolveWeaponGroupPick("C
 check("resolveWeaponGroupPick: a named weapon passes through", resolveWeaponGroupPick("Sword") === "sworddagger" || resolveWeaponGroupPick("Whip") === "whip");
 check("resolveFocusPick maps bows and crossbows together", resolveFocusPick("Bows & Crossbows") === "bowscrossbows");
 
+/* ---------------------------------------------------------------------- */
+/*  Paper Doll placement planner (sheet → doll mirror)                      */
+/* ---------------------------------------------------------------------- */
+
+const { planDollSlot } = await import(new URL("paperdoll.mjs", S));
+
+const uSword = { ...weapon("Sword", { melee: true, id: "psw" }), uuid: "u-sw" };
+const uAxe = { ...weapon("Axe", { melee: true, id: "pax" }), uuid: "u-ax" };
+const uShield = { ...armor("Shield", "shield", { id: "psh" }), uuid: "u-sh" };
+const uHelm = { ...armor("Helmet", "light", { id: "phm" }), uuid: "u-hm" };
+const uPlate = { ...armor("Plate", "heavy", { id: "ppl" }), uuid: "u-pl" };
+const uBoots = { ...gear("Boots", 1, { id: "pbt", equipped: true, subtype: "clothing" }), uuid: "u-bt" };
+const uSpare = { ...weapon("Club", { melee: true, id: "pcl", equipped: false }), uuid: "u-cl" };
+const dollActor = withItems([uSword, uAxe, uShield, uHelm, uPlate, uBoots, uSpare]);
+const byUuid = Object.fromEntries([uSword, uAxe, uShield, uHelm, uPlate, uBoots, uSpare].map((i) => [i.uuid, { ...i, parent: { id: dollActor.id } }]));
+const rsv = (u) => byUuid[u] ?? null;
+
+check("doll plan: helmet -> HEAD", planDollSlot(dollActor, uHelm, {}, rsv) === "HEAD");
+check("doll plan: suit -> BODY", planDollSlot(dollActor, uPlate, {}, rsv) === "BODY");
+check("doll plan: first weapon -> MAIN_RIGHT", planDollSlot(dollActor, uSword, {}, rsv) === "MAIN_RIGHT");
+check("doll plan: second weapon spills to MAIN_LEFT",
+  planDollSlot(dollActor, uAxe, { MAIN_RIGHT: { 0: "u-sw" } }, rsv) === "MAIN_LEFT");
+check("doll plan: shield prefers the off hand", planDollSlot(dollActor, uShield, {}, rsv) === "MAIN_LEFT");
+check("doll plan: already placed stays put",
+  planDollSlot(dollActor, uSword, { MAIN_RIGHT: { 0: "u-sw" } }, rsv) === "MAIN_RIGHT");
+check("doll plan: a stale (unequipped) occupant does not block the slot",
+  planDollSlot(dollActor, uSword, { MAIN_RIGHT: { 0: "u-cl" } }, rsv) === "MAIN_RIGHT");
+check("doll plan: boots route to BOOTS", planDollSlot(dollActor, uBoots, {}, rsv) === "BOOTS");
+check("doll plan: unequipped gear has no slot", planDollSlot(dollActor, uSpare, {}, rsv) === null);
+check("doll plan: both hands full -> leave the player's placement alone",
+  planDollSlot(dollActor, uAxe, { MAIN_RIGHT: { 0: "u-sw" }, MAIN_LEFT: { 0: "u-sh" } }, rsv) === null);
+
 console.log(`test-logic: all ${pass} checks passed`);
