@@ -30,7 +30,7 @@ export function registerSettings() {
       on: L("proficiencyEnforcement.on"),
       off: L("proficiencyEnforcement.off"),
     },
-    default: "auto",
+    default: "on",
     requiresReload: true,
   });
 

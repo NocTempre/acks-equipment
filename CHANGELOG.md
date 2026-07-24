@@ -3,6 +3,23 @@
 Releases up to and including 0.15.1 predate this file; see the git history
 and GitHub releases for earlier changes.
 
+## 0.20.0
+
+- **Proficiency enforcement is ON by default.** The `Proficiency penalties`
+  setting now defaults to `on` (was `auto`), so the RR p.106 Non-Proficient Use
+  package applies out of the box: equipping a weapon or armour beyond a
+  character's declared proficiency — or wielding a weapon with no trained
+  fighting style — attacks as a 0th-level fighter with no attribute bonus to
+  attack or AC. Configure each character with its **ACKS Class Training** items
+  (a fighting style plus the weapon/armour proficiency lists); those lists are
+  the source of truth, not content import. Weapon and armour lists stay
+  permissive when unset (an un-configured list never reads as non-proficient),
+  but a trained fighting style is required to use any weapon at all (RR p.106),
+  so a weapon-wielder needs a Class-Training style item. acks-abilities' positive
+  grants still bridge through regardless of the setting. Set the setting to
+  `auto` (the previous default — penalties off while ACKS Abilities is active)
+  or `off` if characters rely on acks-abilities for their base proficiency lists.
+
 ## 0.19.1
 
 - `locks.mjs` now imports `slug` from acks-lib instead of its own copy. Pure

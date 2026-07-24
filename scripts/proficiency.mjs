@@ -16,30 +16,40 @@ import { ARMOR_LADDER, ARMOR_GATED_SKILLS, ARMOR_GATE_MAX, normalizeName } from 
 import { collectStringFlags, sumEffectModifiers, hasEffectFlag } from "./effects.mjs";
 
 /**
- * KILL SWITCH — is proficiency ENFORCEMENT live?
+ * Is proficiency ENFORCEMENT live?
  *
  * This module infers proficiency from its own `flags.acks-equipment.*` actor
- * flags and effect markers. acks-abilities owns a richer model of the same
- * facts (ability items with categories, grants, ranks, aliases). When it is
- * installed the two disagree: a character whose proficiencies live in
- * acks-abilities carries none of THIS module's flags, so `isWeaponProficient`
- * falls through to its default and a correctly built character reads as
- * NON-proficient — which since v0.13.0 triggers the full RR p. 106
- * Non-Proficient Use package (attacks as a 0th-level fighter, no attribute
- * bonus to attack or AC). That is a severe, silent penalty on a legal PC.
+ * flags and effect markers — the ones the ACKS Class Training compendium items
+ * set: weapon and armour proficiency lists, and fighting styles. The weapon and
+ * armour resolvers stay PERMISSIVE when the actor carries no such flags (no
+ * list ⇒ proficient), so an un-configured character is not penalised for those.
+ * A trained fighting STYLE, however, is required to use any weapon at all
+ * (RR p.106), so a weapon-wielding character with no Class-Training style item
+ * reads as non-proficient once enforcement is on — configure each character
+ * with its Class Training items (a style plus the weapon/armour lists) and the
+ * gate is correct.
  *
- * Until the two models are reconciled, enforcement DEFAULTS OFF whenever
- * acks-abilities is active. The `proficiencyEnforcement` setting overrides in
- * both directions: "auto" (default), "on", "off".
+ * acks-abilities owns a richer model of the same facts but cannot yet express
+ * the base class proficiency LISTS; its POSITIVE grants (Weapon Finesse, a
+ * specialization's style, Martial/Armour Training, Weapon Focus) still apply
+ * through the bridge regardless of this setting.
  *
- * Scope: this disables the PENALTIES, not the module. Equip limits, fighting
- * styles, containers, wear buckets, and the loadout effect are untouched —
- * only proficiency-derived gating goes permissive.
+ * The `proficiencyEnforcement` world setting selects the policy:
+ *   "on"   (default) — always enforce; a declared Class-Training limit is real.
+ *   "auto"           — enforce only while acks-abilities is NOT active (the old
+ *                      default); use it if characters rely on acks-abilities and
+ *                      read as falsely non-proficient.
+ *   "off"            — never enforce; all proficiency gating goes permissive.
+ *
+ * Scope: this toggles the PENALTIES (the RR p.106 Non-Proficient Use package:
+ * attacks as a 0th-level fighter, no attribute bonus to attack or AC), not the
+ * module. Equip limits, containers, wear buckets, the loadout effect, and
+ * bridged acks-abilities bonuses are unaffected.
  */
 export function enforcementActive() {
-  let mode = "auto";
+  let mode = "on";
   try {
-    mode = game.settings?.get?.(MODULE_ID, SETTINGS.PROFICIENCY_ENFORCEMENT) ?? "auto";
+    mode = game.settings?.get?.(MODULE_ID, SETTINGS.PROFICIENCY_ENFORCEMENT) ?? "on";
   } catch {
     // Settings not registered yet, or a bare harness — assume the default.
   }
