@@ -3,6 +3,22 @@
 Releases up to and including 0.15.1 predate this file; see the git history
 and GitHub releases for earlier changes.
 
+## 0.19.0
+
+**Weight computation consumes acks-lib's `itemModel.weight6Of`.** The local
+`itemWeight6` was a duplicate of the family's weight primitive; it's gone, and
+the container roll-up, harness relief, and bowquiver correction now call
+`weight6Of` from acks-lib. `acks-lib` is a new hard `requires` — the RAW
+encumbrance total must always compute, so this can't be an optional binding.
+Verified live: a container's load rolls up identically (rations ×7 + weapon +
+weightless coins), and 303 offline checks pass.
+
+Deliberately NOT migrated (each would be corrupted by `weight6Of`'s
+quantity-multiplication): the harness per-unit "heavy" check, `item-loss`'s
+per-unit risk weight, and the shield encumbrance baseline all still read raw
+`system.weight6`. `STOWABLE_TYPES` stays too — it is `isPhysical ∪ {money}`
+(money is stowable but not physical), not the same set as `isPhysical`.
+
 ## 0.18.0
 
 **Containers move onto the equipment tab; the popout is retired.**

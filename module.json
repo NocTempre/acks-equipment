@@ -2,7 +2,7 @@
   "id": "acks-equipment",
   "title": "ACKS II — Equipment & Fighting Styles",
   "description": "Exhaustive RAW equipment-rule automation for the ACKS II system: enforces equippable limits (hands, one worn armour, shields), fighting styles, weapon/armour/thief-skill proficiency requirements, and draw/sheath action economy. Injects fighting-style and proficiency modifiers into attack, damage, AC, and initiative. Optional RAW overlays for shield variants, masterwork, combat maneuvers, mounted saves, and item loss. Integrates theripper93's Paper Doll with a max-per-type fallback. Ships sample proficiencies, equipment, and support macros.",
-  "version": "0.18.0",
+  "version": "0.19.0",
   "socket": true,
   "flags": {
     "acks-equipment": {
@@ -114,6 +114,11 @@
         "compatibility": {
           "minimum": "1.1.0"
         }
+      },
+      {
+        "id": "acks-lib",
+        "type": "module",
+        "reason": "Shared item weight primitive (itemModel.weight6Of); the RAW encumbrance roll-up must always compute, so this is a hard dependency."
       }
     ],
     "recommends": [

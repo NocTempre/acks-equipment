@@ -71,7 +71,9 @@ const weapon = (name, over = {}) => ({
   id: over.id ?? name.replace(/\W/g, ""),
   name,
   type: "weapon",
-  system: { equipped: over.equipped ?? true, damage: over.damage ?? "1d6", melee: over.melee, missile: over.missile, tags: over.tags ?? [] },
+  // cost + weight6 mirror the system's ItemPhysicalTemplate — every real
+  // weapon/armor/item carries them, which is what itemModel.isPhysical tests.
+  system: { equipped: over.equipped ?? true, cost: over.cost ?? 0, weight6: over.w6 ?? 0, damage: over.damage ?? "1d6", melee: over.melee, missile: over.missile, tags: over.tags ?? [] },
   getFlag: (_m, k) => (over.flags ?? {})[k],
   effects: [],
 });
@@ -79,7 +81,7 @@ const armor = (name, type, over = {}) => ({
   id: over.id ?? name.replace(/\W/g, ""),
   name,
   type: "armor",
-  system: { equipped: over.equipped ?? true, type, aac: { value: over.ac ?? 0 }, weight6: over.w6 ?? 0 },
+  system: { equipped: over.equipped ?? true, type, aac: { value: over.ac ?? 0 }, cost: over.cost ?? 0, weight6: over.w6 ?? 0 },
   getFlag: (_m, k) => (over.flags ?? {})[k],
   effects: [],
 });
@@ -448,7 +450,7 @@ const gear = (name, w6, over = {}) => ({
   id: over.id ?? name.replace(/\W/g, ""),
   name,
   type: over.type ?? "item",
-  system: { weight6: w6, quantity: { value: over.qty ?? 1 }, subtype: over.subtype, equipped: over.equipped ?? false },
+  system: { cost: over.cost ?? 0, weight6: w6, quantity: { value: over.qty ?? 1 }, subtype: over.subtype, equipped: over.equipped ?? false },
   getFlag: (_m, k) => (over.flags ?? {})[k],
   effects: [],
 });

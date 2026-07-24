@@ -29,6 +29,11 @@
  */
 import { MODULE_ID, ITEM_FLAGS } from "./constants.mjs";
 import { shieldEncumbranceDelta6 } from "./overlays/shield-variants.mjs";
+// The one weight primitive for the family. Quantity-aware; returns 0 for
+// non-physical items. See containers' own notes on where raw per-unit weight is
+// wanted instead (harness heavy-check, item-loss, shield baseline) — those do
+// NOT go through this.
+import { weight6Of } from "../../acks-lib/scripts/item-model.mjs";
 
 /** A stone is six 1/6-stone units — core stores weight in `weight6`. */
 export const STONE = 6;
@@ -128,6 +133,10 @@ export function contentsOf(actor, containerId) {
 }
 
 /** Item types that can be put into a container. */
+// NOTE this is isPhysical's set ∪ {"money"} — NOT the same as itemModel.isPhysical.
+// Money is stowable (coins go in a pouch) but not physical (no cost/weight6), so
+// a future refactor must NOT "simplify" this to isPhysical() or coins vanish
+// from container and loose lists and can no longer be stowed.
 export const STOWABLE_TYPES = Object.freeze(["item", "weapon", "armor", "money"]);
 
 /** Items carried loose — not inside anything (containers themselves included). */
@@ -227,19 +236,18 @@ function warn(key, data = {}) {
   ui.notifications?.warn(msg);
 }
 
-/** Effective weight6 of one item, honouring quantity the way core does. */
-function itemWeight6(item) {
-  const w = Number(item.system?.weight6 ?? 0);
-  if (item.type === "item") return w * Number(item.system?.quantity?.value ?? 1);
-  return w;
-}
+// NOTE the local itemWeight6 that used to sit here is gone: it was a duplicate
+// of acks-lib's weight6Of (imported above). They are equivalent over every
+// stowable type — only `item` carries a quantity to multiply, `weapon`/`armor`
+// carry none, and `money` has no weight6 so both yield 0 — verified live before
+// the swap. weight6Of is the family's single weight primitive now.
 
 /** Total weight6 of a container's contents (one level; nesting recurses). */
 export function contentsWeight6(actor, containerId, seen = new Set()) {
   if (seen.has(containerId)) return 0; // guard against a container inside itself
   seen.add(containerId);
   return contentsOf(actor, containerId).reduce(
-    (sum, i) => sum + itemWeight6(i) + (isContainer(i) ? contentsWeight6(actor, i.id, seen) : 0),
+    (sum, i) => sum + weight6Of(i) + (isContainer(i) ? contentsWeight6(actor, i.id, seen) : 0),
     0,
   );
 }
@@ -288,8 +296,12 @@ function harnessEligible6(actor, harnessId) {
   return actor.items
     .filter((i) => i.id !== harnessId)
     .filter((i) => i.type === "item" && i.system?.subtype !== "clothing")
+    // Per-UNIT heavy check stays RAW (not weight6Of): a stack of six 1/6-stone
+    // torches sums to a stone but no single one is heavy, so quantity must NOT
+    // enter here. The reduce below is over type==="item" rows only, where
+    // weight6Of === the old itemWeight6.
     .filter((i) => Number(i.system?.weight6 ?? 0) < STONE)
-    .reduce((sum, i) => sum + itemWeight6(i), 0);
+    .reduce((sum, i) => sum + weight6Of(i), 0);
 }
 
 /** Worn armour category, for the harness's "not over heavy armour" clause. */
@@ -322,7 +334,7 @@ export function encumbranceDelta6(actor) {
   //    empty — rather than quiver + bow + arrows summed.
   for (const q of actor.items.filter((i) => i.getFlag?.(MODULE_ID, ITEM_FLAGS.BOWQUIVER))) {
     const contents = contentsOf(actor, q.id);
-    const flat = itemWeight6(q) + contentsWeight6(actor, q.id);
+    const flat = weight6Of(q) + contentsWeight6(actor, q.id);
     const raw = contents.length ? 2 : 1; // items, i.e. 2/6 or 1/6 stone
     delta += raw - flat;
   }
