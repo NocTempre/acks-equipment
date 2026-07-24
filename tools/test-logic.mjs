@@ -695,7 +695,7 @@ globalThis.ui = globalThis.ui ?? { notifications: { warn: () => {}, info: () => 
 
 // (the read-only container maths — roll-up, capacity, harness, bowquiver — are
 // already covered above; these cover the new MUTATION and placement layer.)
-const { contentsOf, looseItems, containerChain, canStore, storeIn } =
+const { contentsOf, looseItems, containerChain, canStore, storeIn, isLocked, canSeeInside } =
   await import(new URL("containers.mjs", S));
 const { wearLocation, wearBuckets } = await import(new URL("wear.mjs", S));
 const { WEAR } = await import(new URL("config.mjs", S));
@@ -736,16 +736,48 @@ check("storeIn stows the item", (await storeIn(stowActor, wornCloak, pack)) === 
 check("storeIn writes the containedIn flag", stored?.["flags.acks-equipment.containedIn"] === "bp");
 check("stowing worn gear unequips it first", stored?.["system.equipped"] === false);
 
-// The Container Manager's context is the whole feature's data path — build it.
-const { default: ContainerManager } = await import(new URL("apps/container-manager.mjs", S));
-const cmCtx = await new ContainerManager(packed, { id: "cm" })._prepareContext();
-check("container app lists the containers", cmCtx.containers.length === 1 && cmCtx.hasContainers);
-check("container app shows the load label", cmCtx.containers[0].label === "2 / 4 st");
-check("container app lists the contents", cmCtx.containers[0].contents.length === 2);
-check("container app lists loose gear separately", cmCtx.loose.map((i) => i.id).join() === "tor");
-check("container app flags gear whose name matches a RAW carrying device",
-  (await new ContainerManager(withItems([gear("Backpack", 1, { id: "b3" })]), { id: "cm2" })._prepareContext())
-    .loose[0].suggestible);
+// containerReport is now the whole feature's data path (the Container Manager
+// popout it used to feed is retired; the sheet renders this directly).
+globalThis.game.user = { isGM: false };
+const report = containerReport(packed);
+check("containerReport lists the containers", report.length === 1);
+check("containerReport carries the load", report[0].load6 === 12 && report[0].capacityStone === 4);
+check("containerReport lists the contents", report[0].contents.length === 2);
+check("an unlocked container is visible", report[0].visible === true);
+
+// --- locks: visibility is inherited from ownership, gated by the lock ---
+const lockedPack = gear("Strongbox", 1, { id: "sb", flags: { container: { capacity: 2, locked: true } } });
+const coin = gear("Gems", 1, { id: "gm", flags: { containedIn: "sb" } });
+const lockedActor = withItems([lockedPack, coin]);
+
+check("a locked container reads as locked", isLocked(lockedPack) === true);
+check("a player cannot see inside a locked container", canSeeInside(lockedPack) === false);
+const lockedReport = containerReport(lockedActor);
+check("a locked container hides its contents", lockedReport[0].contents.length === 0);
+// You cannot see what is in the strongbox; you can feel that it is not empty.
+// Hiding the load would make the encumbrance number on the sheet unexplainable.
+check("...but NOT its weight — encumbrance must stay explicable",
+  lockedReport[0].contents.length === 0 && lockedReport[0].load6 === 1);
+check("a locked container refuses new items", canStore(lockedActor, gear("Rope", 6, { id: "r9" }), lockedPack).ok === false);
+check("...and says why", canStore(lockedActor, gear("Rope", 6, { id: "r8" }), lockedPack).reason === "locked");
+
+globalThis.game.user = { isGM: true };
+check("the GM always sees inside", canSeeInside(lockedPack) === true);
+check("...and the report shows the contents for them", containerReport(lockedActor)[0].contents.length === 1);
+globalThis.game.user = { isGM: false };
+
+// `opened` records a defeated lock without removing it, so it can be shut again.
+const pickedPack = gear("Strongbox", 1, { id: "sb2", flags: { container: { capacity: 2, locked: true, opened: true } } });
+check("a defeated lock is no longer shut", isLocked(pickedPack) === false);
+check("...so its contents are visible again", canSeeInside(pickedPack) === true);
+
+// Concealment is display-only: it must never hide anything from the maths.
+const hiddenPack = gear("Sack", 1, { id: "sk", flags: { container: { capacity: 6, concealed: true } } });
+const sackGrain = gear("Grain", 6, { id: "gr", flags: { containedIn: "sk" } });
+const concealedActor = withItems([hiddenPack, sackGrain]);
+check("concealed is not locked", isLocked(hiddenPack) === false);
+check("a concealed container still reports its contents", containerReport(concealedActor)[0].contents.length === 1);
+check("a concealed container still weighs", contentsWeight6(concealedActor, "sk") === 6);
 
 // --- wear locations ---
 const helm = armor("Helmet", "light", { id: "hm" });

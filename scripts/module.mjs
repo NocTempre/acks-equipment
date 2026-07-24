@@ -26,10 +26,7 @@ Hooks.once("init", () => {
   buildApi();
 
   try {
-    foundry.applications.handlebars.loadTemplates([
-      `modules/${MODULE_ID}/templates/loadout-summary.hbs`,
-      `modules/${MODULE_ID}/templates/container-manager.hbs`,
-    ]);
+    foundry.applications.handlebars.loadTemplates([`modules/${MODULE_ID}/templates/loadout-summary.hbs`]);
   } catch (err) {
     console.warn(`${MODULE_ID} | template preload skipped`, err);
   }

@@ -230,3 +230,49 @@
   flex: 1;
   min-width: 0;
 }
+
+/* --------------------------------------------------------------------------
+   Containers on the equipment tab
+   The popout window these controls used to live in is retired; a container is
+   opened where it sits, next to the gear it holds.
+   -------------------------------------------------------------------------- */
+
+.acks-equipment-container__header {
+  gap: 0.35rem;
+  align-items: center;
+}
+
+.acks-equipment-container__controls {
+  margin-left: auto;
+  display: flex;
+  gap: 0.15rem;
+  flex: 0 0 auto;
+}
+
+.acks-equipment-container__ctrl {
+  width: 1.4rem;
+  text-align: center;
+  opacity: 0.75;
+  cursor: var(--cursor-pointer);
+}
+
+.acks-equipment-container__ctrl:hover {
+  opacity: 1;
+}
+
+/* A locked container reads as shut at a glance, before anyone reads the hint. */
+.acks-equipment-container.locked > .acks-equipment-container__header {
+  opacity: 0.85;
+  font-style: italic;
+}
+
+.acks-equipment-container.locked {
+  border-left: 2px solid var(--color-level-warning, #c9a227);
+}
+
+/* The drop target has to be visible while dragging or nobody finds it. */
+.acks-equipment-container.drop-hover,
+[data-drop-target].drop-hover {
+  outline: 2px dashed var(--color-shadow-primary, #ff6400);
+  outline-offset: -2px;
+}

@@ -28,7 +28,7 @@ import { MODULE_ID, ITEM_FLAGS } from "./constants.mjs";
 /** A stone is six 1/6-stone units — core stores weight in `weight6`. */
 export const STONE = 6;
 
-/** Container spec on an item: flags.acks-equipment.container = {capacity}. */
+/** Container spec on an item: flags.acks-equipment.container = {capacity, …}. */
 export function containerOf(item) {
   return item?.getFlag?.(MODULE_ID, ITEM_FLAGS.CONTAINER) ?? null;
 }
@@ -38,6 +38,80 @@ export function isContainer(item) {
 /** Declared capacity in stone (0 = unlimited/unspecified). */
 export function capacityStone(item) {
   return Number(containerOf(item)?.capacity ?? 0);
+}
+
+/* -------------------------------------------------------------------------- */
+/*  Locks, concealment, and who may look inside                                */
+/* -------------------------------------------------------------------------- */
+
+/**
+ * Is the container locked AND still shut?
+ *
+ * `locked` is the lock's existence; `opened` records that someone has defeated
+ * it. Two fields rather than one because picking a lock does not remove it —
+ * the chest can be re-locked, and the Judge should not have to re-describe the
+ * lock to do it.
+ */
+export function isLocked(item) {
+  const c = containerOf(item);
+  return !!c?.locked && !c?.opened;
+}
+
+/** A display-only fold. It hides nothing from anyone; it just tidies the list. */
+export const isConcealed = (item) => !!containerOf(item)?.concealed;
+
+/** Do the contents break when the container is bashed open? */
+export const isFragile = (item) => !!containerOf(item)?.fragile;
+
+/**
+ * May this user see what is inside?
+ *
+ * VISIBILITY IS INHERITED FROM OWNERSHIP, GATED BY THE LOCK. Picking up a
+ * locked crate tells you that you are carrying a locked crate — not what is in
+ * it. So: own it and it is open, and you see inside; own it and it is locked,
+ * and you do not, until the lock is defeated.
+ *
+ * The GM always sees inside: they are the one who decided what is in there.
+ *
+ * This is a UI rule, not a security boundary. The contents are ordinary items
+ * on the actor and Foundry replicates them to their owner regardless — a player
+ * determined to look can. Treat it as "the sheet does not tell you", which is
+ * what a locked chest at the table actually means, and put anything that must
+ * genuinely stay secret on a GM-owned actor.
+ */
+export function canSeeInside(item, user = game.user) {
+  if (!item) return false;
+  if (user?.isGM) return true;
+  if (!isLocked(item)) return true;
+  return false;
+}
+
+/**
+ * Lock or unlock a container. Locking a container that was opened shuts it
+ * again — the lock is still the same lock.
+ */
+export async function setLocked(item, locked = true) {
+  const c = { ...(containerOf(item) ?? {}) };
+  c.locked = !!locked;
+  if (locked) c.opened = false;
+  await item.setFlag(MODULE_ID, ITEM_FLAGS.CONTAINER, c);
+  return true;
+}
+
+/** Record that the lock has been defeated (picked, bashed, or a key used). */
+export async function setOpened(item, opened = true) {
+  const c = { ...(containerOf(item) ?? {}) };
+  c.opened = !!opened;
+  await item.setFlag(MODULE_ID, ITEM_FLAGS.CONTAINER, c);
+  return true;
+}
+
+/** Fold or unfold the container's row. Display only. */
+export async function setConcealed(item, concealed = true) {
+  const c = { ...(containerOf(item) ?? {}) };
+  c.concealed = !!concealed;
+  await item.setFlag(MODULE_ID, ITEM_FLAGS.CONTAINER, c);
+  return true;
 }
 /** The container item id this item is stored inside, if any. */
 export function containedIn(item) {
@@ -83,6 +157,10 @@ export function canStore(actor, item, container) {
   if (!isContainer(container)) return { ok: false, reason: "notAContainer" };
   if (item.id === container.id) return { ok: false, reason: "selfContained" };
   if (!STOWABLE_TYPES.includes(item.type)) return { ok: false, reason: "notStowable" };
+  // A shut lock is a real obstacle, unlike capacity: you cannot put the sword
+  // in the chest without opening the chest. Blocked for everyone including the
+  // GM, because silently succeeding would make the lock decorative.
+  if (isLocked(container)) return { ok: false, reason: "locked" };
   // A container may go inside another, but never inside itself transitively.
   if (isContainer(item) && containerChain(actor, container).some((c) => c.id === item.id)) {
     return { ok: false, reason: "cycle" };
@@ -175,13 +253,22 @@ export function containerReport(actor) {
     .map((c) => {
       const load6 = contentsWeight6(actor, c.id);
       const cap = capacityStone(c);
+      const visible = canSeeInside(c);
       return {
         item: c,
         capacityStone: cap,
         load6,
         loadStone: load6 / STONE,
         over: cap > 0 && load6 > cap * STONE,
-        contents: contentsOf(actor, c.id),
+        locked: isLocked(c),
+        concealed: isConcealed(c),
+        fragile: isFragile(c),
+        visible,
+        // WEIGHT IS NOT A SECRET. A locked chest still drags on your
+        // encumbrance, and hiding its load would make the number on the sheet
+        // unexplainable. You cannot see what is inside; you can feel that it
+        // is heavy — which is exactly right.
+        contents: visible ? contentsOf(actor, c.id) : [],
       };
     });
 }

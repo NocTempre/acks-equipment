@@ -66,7 +66,12 @@ export const ITEM_FLAGS = Object.freeze({
   MATERIAL: "material", // primary material, for the item-loss materials table
   LOSS_CATEGORY: "lossCategory", // explicit position in the item-loss order
   LAYER: "layer", // clothing: "over" | "under" (armour)
-  CONTAINER: "container", // {capacity: <stone>} — marks an item as a container
+  // {capacity: <stone>, locked, opened, concealed, fragile, lockMod} — marks an
+  // item as a container. See containers.mjs for what each means; in short:
+  // `locked` hides the contents from a player who has not defeated the lock,
+  // `opened` records that they have, `concealed` is a tidiness toggle with no
+  // secrecy behind it, and `fragile` says the contents break when it is bashed.
+  CONTAINER: "container",
   CONTAINED_IN: "containedIn", // id of the container item this item is stored in
   HARNESS: "harness", // adventurer's harness: ignore 1 stone of ordinary gear
   BOWQUIVER: "bowquiver", // bowquiver: assembly counts as 2 items when loaded

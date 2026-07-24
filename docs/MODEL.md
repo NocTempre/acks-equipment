@@ -108,3 +108,37 @@ separate cross-module task, not a prerequisite for anything here.
 > without the maintainer's explicit go-ahead.** Nothing in this module should be
 > restructured against it, and §5 above stays authoritative until a phase
 > actually lands.
+
+## 2026-07-24 — containers live on the sheet; locks roll the character's own proficiency
+
+The Container Manager popout is retired. It existed only because there was
+nowhere to put its controls; the equipment tab is that place, and a container
+opened next to the gear it holds matches the gesture at the table.
+
+**Visibility is inherited from ownership, gated by the lock.** Picking up a
+locked crate tells you that you are carrying a locked crate, not what is inside.
+Two flags rather than one — `locked` is the lock's existence, `opened` records
+that it has been defeated — because picking a lock does not remove it and the
+Judge should not have to re-describe the lock to shut it again.
+
+The **load is never hidden**. A locked chest still drags on encumbrance, and
+concealing its weight would make the number on the sheet unexplainable. This is
+a UI rule and not a security boundary: contents are ordinary items on the actor
+and Foundry replicates them to their owner regardless. It means "the sheet does
+not tell you", which is what a locked chest at the table means. Anything that
+must genuinely stay secret belongs on a GM-owned actor.
+
+**No throw is invented.** The module ships no target for picking a lock or
+bashing a chest because it has not read one off anyone's page (scans locate,
+recipes interpret — a fabricated target is worse than no automation). `locks.mjs`
+finds the character's own Lockpicking or Dungeon Bashing item and rolls it
+through acks-abilities' roller, so the number comes from the reader's book by
+the same path every other proficiency throw does. Missing proficiency, missing
+roller, or an ability with no throw are all reported as such and left to the
+table. Proficiency names are matched on a normalised prefix, because the shipped
+compendium, the RR register and a hand-made item spell them differently
+("Lockpicking" / "Lockpicking Expertise", "Dungeon Bashing" / "Dungeonbashing
+Expertise") and this module should not maintain a rename table.
+
+Enforced RAW: gloves block lockpicking (RR p. 145). Bashing destroys the
+container; a `fragile` one takes its contents with it.

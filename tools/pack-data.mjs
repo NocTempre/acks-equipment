@@ -46,14 +46,26 @@ new foundry.applications.api.DialogV2({ window: { title: \`Loadout — \${actor.
     _id: "acksEqContainer0",
     name: "Containers",
     img: "icons/containers/bags/pack-leather-brown.webp",
-    command: `// Open the Container Manager: flag carrying devices from the RAW capacity
-// table, drag gear in and out of packs, and read the weight roll-up
-// (RR pp. 142-145, 161). Contents stay real items flagged containedIn, so
-// core's encumbrance already counts them exactly once.
+    command: `// Annotate carrying gear from the RAW capacity table (RR pp. 142-145, 161)
+// and open the sheet where containers now live.
+//
+// The Container Manager window is retired: opening, locking, concealing,
+// filling and emptying a container all happen on the character sheet's
+// equipment tab, next to the gear they act on. This macro does the one thing
+// that was genuinely bulk — stamping capacities onto every carrying device the
+// character owns — and then shows you the tab.
 const api = game.modules.get("acks-equipment")?.api ?? globalThis.acksEquipment;
 if (!api) { ui.notifications.error("ACKS Equipment is not active."); return; }
 const actor = canvas.tokens.controlled[0]?.actor ?? game.user.character;
-api.openContainerManager(actor);`,
+if (!actor) { ui.notifications.warn("Select a token or assign a character first."); return; }
+
+let n = 0;
+for (const item of actor.items) {
+  if (item.type !== "item" || api.isContainer(item)) continue;
+  if (await api.annotateItem(item)) n++;
+}
+ui.notifications.info(\`Annotated \${n} carrying device(s).\`);
+actor.sheet.render(true);`,
   },
   {
     _id: "acksEqItemLoss00",

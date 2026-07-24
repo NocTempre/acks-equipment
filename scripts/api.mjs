@@ -28,9 +28,8 @@ import {
   takeOut,
   emptyContainer,
 } from "./containers.mjs";
-// NOTE: circular by design (the app calls annotateItem). `annotateItem` is a
-// hoisted function declaration, so the app sees it even mid-evaluation.
-import { openContainerManager } from "./apps/container-manager.mjs";
+import { isLocked, isConcealed, isFragile, canSeeInside, setLocked, setOpened, setConcealed } from "./containers.mjs";
+import { pickLock, bashOpen, destroyContainer, canPick, canBash } from "./locks.mjs";
 import { collectEffectModifiers, sumEffectModifiers, collectStringFlags, hasEffectFlag } from "./effects.mjs";
 import { bridgeContributions } from "./abilities-bridge.mjs";
 import * as CONFIG_DATA from "./config.mjs";
@@ -113,7 +112,21 @@ export function buildApi() {
     storeIn,
     takeOut,
     emptyContainer,
-    openContainerManager,
+    // Locks and concealment. `openContainerManager` is GONE — the popout it
+    // opened is retired; its controls live on the character sheet's equipment
+    // tab, next to the gear they act on.
+    isLocked,
+    isConcealed,
+    isFragile,
+    canSeeInside,
+    setLocked,
+    setOpened,
+    setConcealed,
+    pickLock,
+    bashOpen,
+    destroyContainer,
+    canPick,
+    canBash,
     // Effect contract
     collectEffectModifiers,
     sumEffectModifiers,

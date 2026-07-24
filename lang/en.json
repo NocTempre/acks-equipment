@@ -138,5 +138,29 @@
       "namedRevealed": "{item} answers to its true name — its full powers awaken.",
       "openDoll": "Open the Paper Doll"
     }
-  }
+  },
+  "ACKS-EQUIPMENT.container.expand": "Show contents",
+  "ACKS-EQUIPMENT.container.collapse": "Hide contents",
+  "ACKS-EQUIPMENT.container.lock": "Lock",
+  "ACKS-EQUIPMENT.container.unlock": "Unlock",
+  "ACKS-EQUIPMENT.container.pick": "Pick the lock",
+  "ACKS-EQUIPMENT.container.bash": "Break it open",
+  "ACKS-EQUIPMENT.container.bashConfirm": "Break open {name}? The container is destroyed; its contents spill out.",
+  "ACKS-EQUIPMENT.container.bashConfirmFragile": "Break open {name}? It is fragile — the container AND everything inside it are destroyed.",
+  "ACKS-EQUIPMENT.container.unmake": "Stop treating this as a container",
+  "ACKS-EQUIPMENT.container.annotateAll": "Annotate carrying gear from the RAW capacity table",
+  "ACKS-EQUIPMENT.container.lockedHint": "Locked. You cannot see what is inside.",
+  "ACKS-EQUIPMENT.lock.gloved": "You cannot pick a lock wearing gloves (RR p. 145).",
+  "ACKS-EQUIPMENT.lock.noPickProficiency": "{name} has no lockpicking proficiency.",
+  "ACKS-EQUIPMENT.lock.noBashProficiency": "{name} has no dungeon bashing proficiency.",
+  "ACKS-EQUIPMENT.lock.picked": "The lock on {name} opens.",
+  "ACKS-EQUIPMENT.lock.pickFailed": "The lock on {name} holds.",
+  "ACKS-EQUIPMENT.lock.bashFailed": "{name} holds.",
+  "ACKS-EQUIPMENT.lock.bashed": "{name} is broken open.",
+  "ACKS-EQUIPMENT.lock.bashedSpilled": "{name} is broken open; {n} item(s) spill out.",
+  "ACKS-EQUIPMENT.lock.bashedFragile": "{name} shatters, destroying {n} item(s) inside.",
+  "ACKS-EQUIPMENT.lock.notLocked": "That is not locked.",
+  "ACKS-EQUIPMENT.lock.manual.noAbilitiesModule": "Roll {ability} yourself — acks-abilities is not active, so this cannot roll it for you.",
+  "ACKS-EQUIPMENT.lock.manual.noThrow": "{ability} carries no throw on this seat. Connect your book, or roll it yourself.",
+  "ACKS-EQUIPMENT.lock.manual.unresolved": "Rolled — the target could not be resolved here, so the Judge decides whether {name} opens."
 }
