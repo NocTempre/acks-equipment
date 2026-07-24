@@ -19,6 +19,7 @@
  */
 import { MODULE_ID, HOOKS, ITEM_FLAGS } from "./constants.mjs";
 import { containerOf, isLocked, setOpened, contentsOf, isFragile } from "./containers.mjs";
+import { slug } from "../../acks-lib/scripts/vocab.mjs";
 
 /**
  * Proficiency names that defeat a lock, and the ones that break a container.
@@ -31,8 +32,6 @@ import { containerOf, isLocked, setOpened, contentsOf, isFragile } from "./conta
  */
 const PICK_NAMES = ["lockpicking", "lockpick", "openlocks", "picklocks"];
 const BASH_NAMES = ["dungeonbashing", "dungeonbash", "bashing"];
-
-const slug = (s) => String(s ?? "").toLowerCase().replace(/[^a-z0-9]/g, "");
 
 /** The actor's ability item whose name matches one of `names`, or null. */
 function findAbility(actor, names) {

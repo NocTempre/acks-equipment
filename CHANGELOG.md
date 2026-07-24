@@ -3,6 +3,13 @@
 Releases up to and including 0.15.1 predate this file; see the git history
 and GitHub releases for earlier changes.
 
+## 0.19.1
+
+- `locks.mjs` now imports `slug` from acks-lib instead of its own copy. Pure
+  refactor (identical output). `config.mjs`'s `normalizeName` stays local — that
+  file is deliberately Foundry-free and node-importable, not worth coupling to
+  acks-lib for a one-liner.
+
 ## 0.19.0
 
 **Weight computation consumes acks-lib's `itemModel.weight6Of`.** The local
