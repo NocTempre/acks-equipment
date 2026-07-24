@@ -27,6 +27,13 @@ export const EFFECT_DOMAINS = Object.freeze({
   MAX_CLEAVES: "maxCleaves", // Combat Ferocity
   // String / CSV domains.
   WEAPON_FOCUS: "weaponFocus", // CSV of Weapon Focus categories
+  // NOT YET IMPLEMENTED, and not implementable here alone: a slaying bonus
+  // (Goblin-Slaying, Vermin-Slaying) applies against a CREATURE KIND, so it
+  // needs the target's kind at attack time. acks-lib already owns that question
+  // — `scopeApplies(effect, ctx)` resolves `vsKinds` — so the slayer bonus
+  // should arrive as a scoped modifier through the abilities effect model
+  // rather than as a flat domain this module sums blindly. Left declared as the
+  // seam; nothing reads it, and nothing should until the scoped path is wired.
   SLAYER: "slayer", // CSV of "group:bonus" slayer entries (goblin, vermin)
   MARTIAL_WEAPONS: "martialWeapons", // CSV weapon categories added to proficiency
   WEAPON_PROF: "weaponProf", // CSV grant tokens from class training (JJ p. 290 chunks)
@@ -46,6 +53,10 @@ export const EFFECT_DOMAINS = Object.freeze({
   RUNNING: "running", // +30' base speed (≤ medium armour, ≤7 st) — consumed by movement modules (formation), not this one
   BERSERKERGANG: "berserkergang",
   FREE_SWAP: "freeSwap", // Fighting Style Specialization free draw/sheath/ready
+  // NOT YET IMPLEMENTED: no class data says which classes lack the Weapon &
+  // Shield style, and inferring it from the styles an actor happens to be
+  // trained in would turn "not trained yet" into "forbidden". Needs the class
+  // list; declared as the seam it will hang off.
   NO_SHIELD_BENEFIT: "noShieldBenefit", // class lacks Weapon & Shield style
   STYLE_PROFICIENT: "styleProficient", // CSV of fighting styles the actor is trained in
   SWASHBUCKLING: "swashbuckling", // conditional AC: <= light armour & <= 5 st (RR p. 117)
@@ -82,7 +93,10 @@ export const ITEM_FLAGS = Object.freeze({
 /** Actor-level flags this module owns. */
 export const ACTOR_FLAGS = Object.freeze({
   ACTIVE_STYLE: "activeStyle", // player's chosen style when two apply this round
-  LAST_LOADOUT: "lastLoadoutHash", // dedupe guard for effect rebuilds
+  // NOTE `lastLoadoutHash` was here as a dedupe guard for effect rebuilds and
+  // is gone: syncLoadoutEffect already compares changesHash(existing) against
+  // changesHash(desired) and skips the write when they match, so the flag was a
+  // second answer to a question that was already answered — and one nothing set.
   STYLES: "styles", // CSV/array of fighting styles the actor is trained in (+ single,missile)
   WEAPON_PROF: "weaponProficiency", // "all" | CSV of categories/weapon keys the actor is proficient with
   ARMOR_MAX: "armorMax", // highest armour category the actor is proficient in (default heavy)
@@ -134,6 +148,9 @@ export const NAMESPACE = MODULE_ID.replace(/-([a-z0-9])/g, (_, c) => c.toUpperCa
 export const HOOKS = Object.freeze({
   LOADOUT_CHANGED: `${NAMESPACE}.loadoutChanged`, // (actor, loadout)
   EQUIP_BLOCKED: `${NAMESPACE}.equipBlocked`, // (actor, item, {reason, resolution})
+  // Never fired — there is no purchase flow in this module. Declared so the one
+  // that eventually buys gear has a name to announce itself with, rather than
+  // inventing a second convention.
   PURCHASED: `${NAMESPACE}.purchased`, // (actor, item, cost)
   PRE_ROLL_ATTACK: `${NAMESPACE}.preRollAttack`, // (actor, item, mods, ctx) — also the name proposed for a core hook
 });

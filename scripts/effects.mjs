@@ -164,6 +164,11 @@ export function buildLoadoutChanges(actor, loadout) {
   add("system.initiative.mod", sumEffectModifiers(actor, EFFECT_DOMAINS.STYLE_INIT));
   add("system.thac0.mod.melee", sumEffectModifiers(actor, EFFECT_DOMAINS.STYLE_ATTACK_MELEE));
   add("system.thac0.mod.missile", sumEffectModifiers(actor, EFFECT_DOMAINS.STYLE_ATTACK_MISSILE));
+  // Melee DAMAGE had no outlet while both attack domains did, so anything
+  // contributing through this channel — an ability, a hand-made Active Effect —
+  // was summed and then silently discarded. Nothing else reads the domain, so
+  // the value simply vanished rather than landing anywhere wrong.
+  add("system.damage.mod.melee", sumEffectModifiers(actor, EFFECT_DOMAINS.STYLE_DAMAGE_MELEE));
   add("system.aac.mod", sumEffectModifiers(actor, EFFECT_DOMAINS.STYLE_AC));
 
   // Conditional AC (Swashbuckling / Blade-Dancing) computed in the loadout.
@@ -179,7 +184,7 @@ export function buildLoadoutChanges(actor, loadout) {
   // JJ shield-variant overlay: core's computeAC adds any equipped shield's AC
   // unconditionally. Where RAW grants none (a buckler without Specialization, or
   // a shield strapped on the back), cancel it rather than fight core.
-  add("system.aac.mod", shieldACCorrection(loadout, spec.has(STYLE.WEAPON_SHIELD.toLowerCase())));
+  add("system.aac.mod", shieldACCorrection(loadout, spec.has(STYLE.WEAPON_SHIELD.toLowerCase()), actor));
 
   return changes;
 }

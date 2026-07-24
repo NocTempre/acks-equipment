@@ -9,7 +9,7 @@
  * is what RAW wants. So the common case needs **no** correction at all, and
  * acks-formation keeps reading core's encumbrance unchanged.
  *
- * Only two RAW rules genuinely disagree with a flat sum, and only those are
+ * Only a few RAW rules genuinely disagree with a flat sum, and only those are
  * corrected:
  *
  *  1. **Adventurer's harness** (RR p. 142): the wearer "can ignore 1 stone's
@@ -19,11 +19,16 @@
  *  2. **Bowquiver** (RR p. 142): empty it counts as 1 item; holding a bow and 20
  *     arrows the whole assembly counts as **2 items** — not bow (1 stone) plus
  *     quiver plus arrows. A flat sum is wildly heavier than RAW.
+ *  3. **JJ shield variants** (JJ pp. 407–408, overlay-gated): a shield is rated
+ *     by variant and carry state, not by its item weight — a buckler counts as
+ *     one item rather than a stone, a kite shield rides lighter mounted, and a
+ *     front-strapped crescent is heavier than a slung one.
  *
  * Capacity (backpack 4 st, rucksack 2, sack 6/2, saddlebag 3, pouch 1/2) is
  * enforced as a warning on the container, not by altering weight.
  */
 import { MODULE_ID, ITEM_FLAGS } from "./constants.mjs";
+import { shieldEncumbranceDelta6 } from "./overlays/shield-variants.mjs";
 
 /** A stone is six 1/6-stone units — core stores weight in `weight6`. */
 export const STONE = 6;
@@ -299,6 +304,11 @@ function wornArmourType(actor) {
  */
 export function encumbranceDelta6(actor) {
   let delta = 0;
+
+  // 0. JJ shield variants rate a shield by type and carry state rather than by
+  //    the item's own weight (a kite shield rides lighter mounted; a buckler
+  //    counts as one item, not one stone). Off unless that overlay is enabled.
+  delta += shieldEncumbranceDelta6(actor);
 
   // 1. Adventurer's harness: ignore up to 1 stone of ordinary equipment.
   const harness = actor.items.find(

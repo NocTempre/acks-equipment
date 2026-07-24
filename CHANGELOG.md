@@ -36,6 +36,44 @@ it at the table.
   `fragile`, in which case they break with it. Confirmed before it happens.
 - **Drag-to-stow works on the sheet**, including dragging an item back down to
   core's own lists to take it out.
+- **A phalanx shield is now unusable mounted**, as RAW says. The variant table
+  has carried `noMount` all along with nothing able to answer "am I mounted?";
+  acks-lib 0.10.0 records the mount binding, so the rule fires. Kite shields —
+  which are *for* horseback — are unaffected, and with acks-lib absent every
+  mounted rule stays dormant. `mountEnc`, `mountAlternates` and `mountShares`
+  remain unwired on purpose: shield encumbrance is not implemented at all, and
+  the self-or-mount protection choice is a player's decision each round, not a
+  derivable fact.
+
+**Declared-but-inert rules, now implemented.** A sweep for config that nothing
+reads (`npm run find:dead-config`, added here) found ten authored rules that
+looked implemented in the data and did nothing at the table:
+
+- **Shield encumbrance by variant and carry state** (`enc`, `encItem`,
+  `frontEnc`, `mountEnc`). Every shield weighed whatever its item said. Now a
+  buckler is rated as one *item* rather than one stone, a kite shield rides
+  lighter mounted (2 stone → 1), and a front-strapped crescent is *heavier*
+  than a slung one (2 against 1) — which is what the table says. Contributed as
+  a correction to core's flat sum, alongside the harness and bowquiver, so core
+  keeps counting each item exactly once. Only EQUIPPED shields are re-rated: one
+  in a pack is cargo.
+- **`noBack`** — a kite or phalanx shield cannot be slung on the back at all.
+  Corrected in `strapOf()`, the single place everything else asks, so a bad flag
+  cannot leak separately into the hand budget, the AC correction and the weight.
+- **Melee damage from the effect-domain channel.** Both attack domains had an
+  outlet and `STYLE_DAMAGE_MELEE` did not, so anything contributing melee damage
+  that way was summed and then silently discarded.
+- Removed `ACTOR_FLAGS.LAST_LOADOUT`: a dedupe guard nothing set, for a job
+  `syncLoadoutEffect` already does by comparing change hashes.
+
+The six entries that remain unread are now documented **at the entry** with the
+reason — `backAC` and `vulnerableProtects` need per-attack context the system
+does not model; `mountAlternates` and `mountShares` are a player's choice each
+round, not a derivable fact; `MASTERWORK` is deliberately data rather than
+automation. `SLAYER` and `NO_SHIELD_BENEFIT` are marked as seams: a slaying
+bonus applies against a creature KIND, which acks-lib's `scopeApplies` already
+answers, so it belongs in the scoped-modifier path rather than as a flat domain
+summed blindly here.
 
 **Breaking:** `api.openContainerManager` is removed along with the window. The
 shipped Containers macro now annotates carrying gear and opens the sheet.

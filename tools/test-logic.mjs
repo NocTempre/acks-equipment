@@ -79,7 +79,7 @@ const armor = (name, type, over = {}) => ({
   id: over.id ?? name.replace(/\W/g, ""),
   name,
   type: "armor",
-  system: { equipped: over.equipped ?? true, type, aac: { value: over.ac ?? 0 } },
+  system: { equipped: over.equipped ?? true, type, aac: { value: over.ac ?? 0 }, weight6: over.w6 ?? 0 },
   getFlag: (_m, k) => (over.flags ?? {})[k],
   effects: [],
 });
@@ -353,7 +353,59 @@ check("back-strapped shield → ordinary AC cancelled (rear-only is situational)
 const phal = wsActor([weapon("Sword", { melee: true, id: "s5" }), shieldItem("Phalanx Shield", "phalanx")], true);
 const phalLo = getLoadout(phal);
 check("phalanx in hand → weaponShield style, costs a hand", phalLo.activeStyle === "weaponShield" && phalLo.handsUsed === 2);
+const phalAC = buildLoadoutChanges(phal, phalLo).filter((c) => c.key === "system.aac.mod").reduce((n, c) => n + Number(c.value), 0);
+check("phalanx on foot → core's shield AC stands", phalAC === 1);
+
+// MOUNTED: a phalanx shield cannot be used from horseback (config `noMount`),
+// which the mount binding in acks-lib finally makes answerable. Stub the lib
+// the way the runtime reaches it — through globalThis.acksLib.
+const priorLib = globalThis.acksLib;
+globalThis.acksLib = { mount: { isMounted: (a) => a?.id === phal.id } };
+const phalMountedAC = buildLoadoutChanges(phal, phalLo).filter((c) => c.key === "system.aac.mod").reduce((n, c) => n + Number(c.value), 0);
+check("phalanx MOUNTED → ordinary AC cancelled (RAW: unusable from horseback)", phalMountedAC === 0);
+
+// The rule must be specific to the phalanx: a kite shield is FOR horseback.
+const kite = wsActor([weapon("Sword", { melee: true, id: "s6" }), shieldItem("Kite Shield", "kite")], true);
+const kiteMountedAC = buildLoadoutChanges(kite, getLoadout(kite)).filter((c) => c.key === "system.aac.mod").reduce((n, c) => n + Number(c.value), 0);
+check("kite MOUNTED → unaffected, still grants AC", kiteMountedAC === 1);
+
+// Without acks-lib nothing mounted fires, so behaviour is exactly as before.
+globalThis.acksLib = undefined;
+const phalNoLibAC = buildLoadoutChanges(phal, phalLo).filter((c) => c.key === "system.aac.mod").reduce((n, c) => n + Number(c.value), 0);
+check("no acks-lib → mounted rules dormant, phalanx AC stands", phalNoLibAC === 1);
+globalThis.acksLib = priorLib;
+
+// --- shield ENCUMBRANCE (enc / encItem / frontEnc / mountEnc) -----------------
+// The variant table carried these from the start with nothing reading them, so
+// every shield weighed whatever its item said. Values are in STONE; the module
+// contributes the difference from core's flat sum, in weight6.
+const { shieldEnc6, shieldEncumbranceDelta6 } = await import(new URL("overlays/shield-variants.mjs", S));
+const shieldOf = (name, variant, strap) =>
+  armor(name, "shield", { ac: 1, id: "e" + name.replace(/\W/g, ""), flags: { shieldVariant: variant, strap }, equipped: true });
+
+check("standard shield → 1 stone", shieldEnc6(shieldOf("Shield", "standard")) === 6);
+check("kite shield → 2 stone on foot", shieldEnc6(shieldOf("Kite", "kite")) === 12);
+check("buckler is rated as one ITEM, not one stone", shieldEnc6(shieldOf("Buckler", "buckler")) === 1);
+// Front-strapping a crescent makes it HEAVIER — the table says 2 against 1.
+check("crescent slung → 1 stone", shieldEnc6(shieldOf("Crescent", "crescent")) === 6);
+check("crescent front-strapped → 2 stone", shieldEnc6(shieldOf("Crescent", "crescent", "front")) === 12);
+
+const kiteRider = wsActor([shieldOf("Kite", "kite")], false);
+globalThis.acksLib = { mount: { isMounted: (a) => a?.id === kiteRider.id } };
+check("kite shield rides lighter mounted (2 stone → 1)", shieldEnc6(shieldOf("Kite", "kite"), kiteRider) === 6);
+globalThis.acksLib = priorLib;
+
+// The correction is the DIFFERENCE from the item's own weight, so core keeps
+// counting each item once and only the disagreement is contributed.
+const heavyKite = armor("Kite", "shield", { ac: 1, id: "hk", w6: 6, flags: { shieldVariant: "kite" }, equipped: true });
+check("correction is the difference from the item's own weight6",
+  shieldEncumbranceDelta6(wsActor([heavyKite])) === 6); // RAW 2 stone (12) − item 1 stone (6)
+check("an UNEQUIPPED shield is cargo and keeps its item weight",
+  shieldEncumbranceDelta6(wsActor([armor("Kite", "shield", { ac: 1, id: "uk", w6: 6, flags: { shieldVariant: "kite" }, equipped: false })])) === 0);
+
 SETTINGS_STATE.overlayShieldVariants = false; // leave global state clean
+check("overlay off → shields weigh what the item says", shieldEncumbranceDelta6(wsActor([heavyKite])) === 0);
+check("overlay off → shieldEnc6 defers to core", shieldEnc6(shieldOf("Kite", "kite")) === null);
 
 // --- Phase 5b: special maneuvers overlay -------------------------------------
 const { maneuverMods, MANEUVERS } = await import(new URL("overlays/maneuvers.mjs", S));

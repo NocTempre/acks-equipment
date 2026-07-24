@@ -98,8 +98,16 @@ export function registerSettings() {
   // OVERLAY_ENCLOSING_HELM have no implementation behind them: no code reads
   // these keys. They were showing in the settings UI as working toggles that
   // silently did nothing. The keys and their localised strings are kept so
-  // wiring them up is a one-line change once the overlays exist (mounted is
-  // blocked on there being any "mounted" state in the system at all).
+  // wiring them up is a one-line change once the overlays exist.
+  //
+  // MOUNTED is no longer BLOCKED — acks-lib records who is riding what, and the
+  // one flat mounted rule the module already had authored (a phalanx shield is
+  // unusable from horseback) is now enforced under the shield-variant overlay
+  // that owns it. What is still missing is a mounted overlay's worth of rules
+  // to put behind a toggle of its own: shield encumbrance is not implemented at
+  // all, and the self-or-mount protection choice is a player's decision each
+  // round rather than a derivable fact. Registering an empty toggle would put
+  // the silently-does-nothing switch back.
 }
 
 /** Convenience getter. */

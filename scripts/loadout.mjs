@@ -37,7 +37,7 @@ export function trainedStyles(actor) {
   // All style keys are stored lowercased for case-insensitive comparison
   // against `activeStyle.toLowerCase()`.
   const set = new Set(["single", "missile"]);
-  const flag = actor.getFlag?.(MODULE_ID, "styles");
+  const flag = actor.getFlag?.(MODULE_ID, ACTOR_FLAGS.STYLES);
   if (typeof flag === "string") flag.split(",").map((s) => s.trim().toLowerCase()).filter(Boolean).forEach((s) => set.add(s));
   else if (Array.isArray(flag)) flag.forEach((s) => set.add(String(s).toLowerCase()));
   for (const s of collectStringFlags(actor, EFFECT_DOMAINS.STYLE_PROFICIENT)) {
