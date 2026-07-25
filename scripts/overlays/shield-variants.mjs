@@ -68,6 +68,26 @@ export function canStrap(item, strap) {
   return !variantOf(item).noBack;
 }
 
+/**
+ * Cycle a shield's carry position: hand → back → front → hand, skipping any
+ * position this shield cannot take (a kite/phalanx shield has no back). A
+ * strapped shield costs no hand (RR/JJ p407), so this is how a player frees a
+ * hand for a torch while keeping the shield's situational cover. Only meaningful
+ * with the overlay on — off, strapOf always reports "hand" and this is inert.
+ * @returns {Promise<string>} the new strap position.
+ */
+export async function cycleStrap(item) {
+  const order = ["hand", "back", "front"];
+  let i = (order.indexOf(strapOf(item)) + 1) % order.length;
+  for (let guard = 0; guard < order.length && !canStrap(item, order[i]); guard++) {
+    i = (i + 1) % order.length;
+  }
+  const next = order[i];
+  if (next === "hand") await item.unsetFlag?.(MODULE_ID, ITEM_FLAGS.STRAP);
+  else await item.setFlag?.(MODULE_ID, ITEM_FLAGS.STRAP, next);
+  return next;
+}
+
 /** True when the shield occupies a hand (and so can form Weapon & Shield). */
 export function occupiesHand(item) {
   return strapOf(item) === "hand";

@@ -66,6 +66,8 @@ const { buildLoadoutChanges } = await import(new URL("effects.mjs", S));
 const { weaponProficiency, isWeaponProficient, armorMax, isArmorProficient, thiefSkillsGated, swashbucklingAC } = await import(new URL("proficiency.mjs", S));
 const { buildProficiencies, buildSamples, buildActors } = await import(new URL("../tools/pack-data.mjs", import.meta.url));
 const { computeAttackMods } = await import(new URL("roll-wrap.mjs", S));
+const { readiedWeaponData, prepareTorch, unarmedStrikeData, masterworkTiersFor, addToDamage, setMasterwork } = await import(new URL("actions.mjs", S));
+const { cycleStrap, strapOf } = await import(new URL("overlays/shield-variants.mjs", S));
 
 const weapon = (name, over = {}) => ({
   id: over.id ?? name.replace(/\W/g, ""),
@@ -113,7 +115,8 @@ check("override size/hands flag wins", handCost(classifyWeapon(weapon("Stick", {
 
 // equipmentClass: the family's equipment "root" (name → core type + stats).
 const torchClass = equipmentClass("Torch");
-check("equipmentClass: torch is a 1d4 light-weapon (melee+thrown)", torchClass?.type === "weapon" && torchClass.damage === "1d4" && torchClass.light && torchClass.melee && torchClass.thrown);
+check("equipmentClass: torch is a carried light STACK (item, prepareAs weapon)", torchClass?.type === "item" && torchClass.prepareAs === "weapon" && torchClass.damage === "1d4" && torchClass.light && torchClass.melee && torchClass.thrown);
+check("equipmentClass: a thrown melee weapon is missile-capable (enables the range selector)", torchClass.missile === true && equipmentClass("Hand Axe")?.missile === true && equipmentClass("Hand Axe").melee === true);
 const oilClass = equipmentClass("Military Oil");
 check("equipmentClass: military oil is a thrown splash weapon", oilClass?.type === "weapon" && oilClass.splash && oilClass.missile && oilClass.thrown);
 const hwClass = equipmentClass("Holy Water");
@@ -1248,5 +1251,99 @@ const weakTorch = withItems([weapon("Torch", { melee: true, id: "tor2", damage: 
 weakTorch.system = { scores: { str: { mod: -1 } }, damage: { mod: { melee: 0 } }, details: { level: 1 }, thac0: { bba: 0 } };
 const wmods = computeAttackMods(weakTorch, { item: { _id: "tor2", system: { damage: "1d4", bonus: 0 } }, }, { type: "melee" });
 check("torch keeps a STR penalty (not a bonus)", !wmods || !/1d4 -/.test(wmods.damage ?? "1d4"));
+
+/* ---------------------------------------------------------------------- */
+/*  #2 Thrown weapons add STR to damage in missile mode (RR p298)          */
+/* ---------------------------------------------------------------------- */
+
+const axeThrower = withItems([weapon("Hand Axe", { melee: true, missile: true, id: "ha1", damage: "1d6" })]);
+axeThrower.system = { scores: { str: { mod: 2 } }, damage: { mod: { missile: 0 } }, details: { level: 1 }, thac0: { bba: 0 } };
+const axeMissile = computeAttackMods(axeThrower, { item: { _id: "ha1", system: { damage: "1d6", bonus: 0 } } }, { type: "missile" });
+check("thrown axe adds STR to damage when hurled", axeMissile && /1d6 \+ 2/.test(axeMissile.damage));
+const axeMelee = computeAttackMods(axeThrower, { item: { _id: "ha1", system: { damage: "1d6", bonus: 0 } } }, { type: "melee" });
+check("thrown axe swung in melee is untouched (core already adds STR)", !axeMelee || !/\+ 2/.test(axeMelee.damage ?? ""));
+const oilThrower = withItems([weapon("Military Oil", { missile: true, id: "mo1", damage: "1d8" })]);
+oilThrower.system = { scores: { str: { mod: 3 } }, damage: { mod: { missile: 0 } }, details: { level: 1 }, thac0: { bba: 0 } };
+const oilMods = computeAttackMods(oilThrower, { item: { _id: "mo1", system: { damage: "1d8", bonus: 0 } } }, { type: "missile" });
+check("thrown splash oil gains no STR to damage (RAW exclusion)", !oilMods || !/1d8 \+/.test(oilMods.damage ?? ""));
+
+/* ---------------------------------------------------------------------- */
+/*  #1 Torch: ready one from the stack into a wielded 1d4 light-weapon      */
+/* ---------------------------------------------------------------------- */
+
+const readied = readiedWeaponData({ name: "Torch", img: "t.png", system: { cost: 1, weight6: 1 } });
+check("readied torch is a 1d4 weapon, melee AND thrown, light", readied.type === "weapon" && readied.system.damage === "1d4" && readied.system.melee && readied.system.missile && readied.flags["acks-equipment"].light);
+check("readied torch carries no quantity (a single wielded torch)", readied.system.quantity === undefined);
+check("readiedWeaponData ignores non-preparable gear", readiedWeaponData({ name: "Sword" }) === null && readiedWeaponData({ name: "Lantern" }) === null);
+
+const created = [];
+const torchActor = { createEmbeddedDocuments: async (_t, arr) => { created.push(...arr); return arr.map((d, i) => ({ ...d, id: "new" + i })); } };
+const stack = { name: "Torch", img: "t.png", system: { quantity: { value: 3 }, cost: 1, weight6: 1 }, deleted: false, getFlag: () => undefined, async update(u) { if (u["system.quantity.value"] != null) this.system.quantity.value = u["system.quantity.value"]; }, async delete() { this.deleted = true; } };
+const madeTorch = await prepareTorch(torchActor, stack);
+check("prepareTorch creates a weapon-torch", madeTorch && madeTorch.type === "weapon" && madeTorch.system.damage === "1d4");
+check("prepareTorch decrements the stack (3 → 2), keeps it", stack.system.quantity.value === 2 && stack.deleted === false);
+const lastTorch = { name: "Torch", img: "t.png", system: { quantity: { value: 1 } }, deleted: false, getFlag: () => undefined, async update(u) { this.system.quantity.value = u["system.quantity.value"]; }, async delete() { this.deleted = true; } };
+await prepareTorch(torchActor, lastTorch);
+check("prepareTorch deletes the stack when the last torch is drawn", lastTorch.system.quantity.value === 0 && lastTorch.deleted === true);
+
+/* ---------------------------------------------------------------------- */
+/*  #3 Unarmed strike (RR p299: 1d3 nonlethal, melee only)                 */
+/* ---------------------------------------------------------------------- */
+
+const unarmed = unarmedStrikeData();
+check("unarmed strike is 1d3 melee-only", unarmed.system.damage === "1d3" && unarmed.system.melee === true && unarmed.system.missile === false);
+
+/* ---------------------------------------------------------------------- */
+/*  #4 Masterwork (RR p159): stamped onto core fields, reversible          */
+/* ---------------------------------------------------------------------- */
+
+check("addToDamage appends a flat bonus", addToDamage("1d6", 1) === "1d6 + 1" && addToDamage("1d8", 0) === "1d8");
+check("masterworkTiersFor lists weapon vs armor tiers", masterworkTiersFor("weapon").length === 3 && masterworkTiersFor("armor").length === 2 && masterworkTiersFor("item").length === 0);
+
+const mockDoc = (type, sys = {}) => ({
+  type,
+  system: { bonus: sys.bonus ?? 0, damage: sys.damage, aac: { value: sys.aac ?? 0 }, weight6: sys.weight6 ?? 0 },
+  _flags: {},
+  getFlag(_m, k) { return this._flags[k]; },
+  async setFlag(_m, k, v) { this._flags[k] = v; },
+  async unsetFlag(_m, k) { delete this._flags[k]; },
+  async update(u) {
+    for (const [path, v] of Object.entries(u)) {
+      const parts = path.replace(/^system\./, "").split(".");
+      let o = this.system;
+      while (parts.length > 1) o = o[parts.shift()] ??= {};
+      o[parts[0]] = v;
+    }
+  },
+});
+
+const mkWeapon = mockDoc("weapon", { bonus: 0, damage: "1d6", weight6: 6 });
+await setMasterwork(mkWeapon, "weaponBoth");
+check("masterwork +1/+1 stamps both bonus and damage", mkWeapon.system.bonus === 1 && /1d6 \+ 1/.test(mkWeapon.system.damage));
+check("masterwork records the tier + base for reversal", mkWeapon._flags.masterwork?.tier === "weaponBoth" && mkWeapon._flags.masterwork.base.damage === "1d6");
+await setMasterwork(mkWeapon, "weaponToHit");
+check("switching tiers restarts from base (never compounds the die)", mkWeapon.system.bonus === 1 && mkWeapon.system.damage === "1d6");
+await setMasterwork(mkWeapon, "none");
+check("masterwork None restores the base exactly and clears the flag", mkWeapon.system.bonus === 0 && mkWeapon.system.damage === "1d6" && mkWeapon._flags.masterwork === undefined);
+
+const mkArmor = mockDoc("armor", { aac: 4, weight6: 30 });
+await setMasterwork(mkArmor, "armorLight");
+check("masterwork −1 stone reduces weight6 by 6", mkArmor.system.weight6 === 24 && mkArmor.system.aac.value === 4);
+await setMasterwork(mkArmor, "armorAC");
+check("masterwork +1 AC raises aac from base, restores weight", mkArmor.system.aac.value === 5 && mkArmor.system.weight6 === 30);
+
+/* ---------------------------------------------------------------------- */
+/*  #5 Shield strap cycle — free a hand by slinging (overlay on)           */
+/* ---------------------------------------------------------------------- */
+
+SETTINGS_STATE.overlayShieldVariants = true;
+const strapMock = (variant) => ({ type: "armor", system: { type: "shield" }, _flags: variant ? { shieldVariant: variant } : {}, getFlag(_m, k) { return this._flags[k]; }, async setFlag(_m, k, v) { this._flags[k] = v; }, async unsetFlag(_m, k) { delete this._flags[k]; } });
+const shieldDoc = strapMock();
+check("strap starts in hand", strapOf(shieldDoc) === "hand");
+check("cycle hand → back", (await cycleStrap(shieldDoc)) === "back" && shieldDoc._flags.strap === "back");
+check("cycle back → front", (await cycleStrap(shieldDoc)) === "front");
+check("cycle front → hand clears the flag", (await cycleStrap(shieldDoc)) === "hand" && shieldDoc._flags.strap === undefined);
+check("a kite shield skips the back (no-back): hand → front", (await cycleStrap(strapMock("kite"))) === "front");
+SETTINGS_STATE.overlayShieldVariants = false;
 
 console.log(`test-logic: all ${pass} checks passed`);

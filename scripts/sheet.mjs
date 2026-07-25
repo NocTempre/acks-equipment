@@ -19,9 +19,11 @@
  * HANDOFF: if the system ever groups inventory by an extensible bucket list of
  * its own, this file should be deleted in favour of contributing to it.
  */
-import { MODULE_ID } from "./constants.mjs";
+import { MODULE_ID, ITEM_FLAGS } from "./constants.mjs";
 import { WEAR_ICONS } from "./config.mjs";
 import { getLoadout, cycleGrip } from "./loadout.mjs";
+import { prepareTorch, rollUnarmed, setMasterwork, masterworkTiersFor, drawItem, sheatheItem } from "./actions.mjs";
+import { cycleStrap, strapOf, overlayEnabled } from "./overlays/shield-variants.mjs";
 import { wearBuckets, wearLabel } from "./wear.mjs";
 import {
   containerReport,
@@ -80,7 +82,6 @@ function claimRows(tab, items, list, wearKey) {
 /** Build the "Worn & Wielded" section, or null when nothing is equipped. */
 function buildWornSection(actor, tab, loadout) {
   const buckets = wearBuckets(actor, loadout);
-  if (!buckets.length) return null;
 
   const section = el("section", "acks-equipment-wear item-list-section");
   const head = el("div", "acks-equipment-wear__title");
@@ -112,7 +113,33 @@ function buildWornSection(actor, tab, loadout) {
     bucket.append(bucketHeader(key, wearLabel(key)), list);
     section.append(bucket);
   }
-  return moved ? section : null;
+
+  // Unarmed: an empty-handed character always has a strike (RR p299, 1d3
+  // nonlethal) — a mode, not the absence of one. Shown whenever no weapon is
+  // wielded, so it appears even for a character carrying nothing at all.
+  let unarmed = false;
+  if (!loadout.weapons.length) {
+    const bucket = el("div", "acks-equipment-wear__bucket acks-equipment-wear__bucket--unarmed");
+    const list = el("ul", "item-list unlist");
+    const row = el("li", "item acks-equipment-unarmed");
+    row.append(el("span", "acks-equipment-unarmed__label", game.i18n.localize("ACKS-EQUIPMENT.action.unarmed")));
+    if (actor.isOwner) {
+      const strike = el("a", "item-control acks-equipment-unarmed__strike");
+      strike.innerHTML = `<i class="fas fa-hand-fist"></i>`;
+      strike.dataset.tooltip = game.i18n.localize("ACKS-EQUIPMENT.action.unarmedHint");
+      strike.addEventListener("click", (ev) => {
+        ev.preventDefault();
+        ev.stopPropagation();
+        rollUnarmed(actor);
+      });
+      row.append(strike);
+    }
+    list.append(row);
+    bucket.append(bucketHeader("mainHand", game.i18n.localize("ACKS-EQUIPMENT.action.unarmed")), list);
+    section.append(bucket);
+    unarmed = true;
+  }
+  return moved || unarmed ? section : null;
 }
 
 /** A light source's formation light type from its name, or null. A torch is a
@@ -146,6 +173,11 @@ function injectLightControls(list, actor) {
     // shows on the item itself; "held" is the formation light record, below.
     if (!type || li.querySelector(".acks-equipment-light")) continue;
     const controls = li.querySelector(".list-header__controls") ?? li.querySelector(".item-row") ?? li;
+    // A TORCH carried as a STACK (an `item`, not a wielded weapon) gets a "Ready"
+    // control instead — but that is a pure equipment action, so it lives in
+    // injectTorchReady (which runs without acks-formation). Skip it here so a
+    // torch bundle never also picks up a formation Light control.
+    if (type === "torch" && item.type === "item") continue;
     const lit = mine.find((l) => l.type === type && l.lit);
     const held = lit || mine.find((l) => l.type === type && l.shielded);
     const add = (icon, key, run) => {
@@ -197,6 +229,127 @@ function injectGripControls(list, loadout) {
     });
     const controls = li.querySelector(".list-header__controls") ?? li.querySelector(".item-row") ?? li;
     controls.insertBefore(a, controls.firstChild);
+  }
+}
+
+/** The controls container within an inventory row (where item-control links go). */
+function rowControls(li) {
+  return li.querySelector(".list-header__controls") ?? li.querySelector(".item-row") ?? li;
+}
+
+/**
+ * "Ready" control on every torch STACK (a light `item` bundle). Pulls one torch
+ * out as a wieldable 1d4 light-weapon (prepareTorch) and decrements the bundle.
+ * Independent of acks-formation — readying a torch is a pure equipment action —
+ * so unlike the light/douse controls it renders whether or not the actor is in a
+ * party formation.
+ */
+function injectTorchReady(tab, actor) {
+  if (!actor?.isOwner) return;
+  for (const li of tab.querySelectorAll("li.item[data-item-id]")) {
+    const item = actor.items.get(li.dataset.itemId);
+    if (item?.type !== "item" || lightTypeOf(item) !== "torch" || li.querySelector(".acks-equipment-ready")) continue;
+    const a = el("a", "item-control acks-equipment-ready");
+    a.innerHTML = `<i class="fas fa-fire-flame-simple"></i>`;
+    a.dataset.tooltip = game.i18n.localize("ACKS-EQUIPMENT.action.readyHint");
+    a.addEventListener("click", (ev) => {
+      ev.preventDefault();
+      ev.stopPropagation();
+      prepareTorch(actor, item).catch((err) => console.error(`${MODULE_ID} | ready torch failed`, err));
+    });
+    rowControls(li).insertBefore(a, rowControls(li).firstChild);
+  }
+}
+
+/**
+ * Draw / sheathe every weapon row: a wielded weapon gets a Sheathe control, a
+ * carried one a Draw control — core's equip toggle with a combat verb, sitting in
+ * the same control row as grip and masterwork (the "Equip / Unequip on a separate
+ * button" of the grip UI brief). A thrown-away weapon is skipped: it is recovered
+ * when picked up, not re-drawn.
+ */
+function injectDrawSheathe(tab, actor) {
+  if (!actor?.isOwner) return;
+  for (const li of tab.querySelectorAll("li.item[data-item-id]")) {
+    const item = actor.items.get(li.dataset.itemId);
+    if (item?.type !== "weapon" || li.querySelector(".acks-equipment-draw")) continue;
+    if (item.getFlag?.(MODULE_ID, ITEM_FLAGS.THROWN_STATE)) continue;
+    const equipped = !!item.system?.equipped;
+    const a = el("a", `item-control acks-equipment-draw acks-equipment-draw--${equipped ? "sheathe" : "draw"}`);
+    a.innerHTML = `<i class="fas ${equipped ? "fa-box-archive" : "fa-hand-fist"}"></i>`;
+    a.dataset.tooltip = game.i18n.localize(`ACKS-EQUIPMENT.action.${equipped ? "sheathe" : "draw"}`);
+    a.addEventListener("click", (ev) => {
+      ev.preventDefault();
+      ev.stopPropagation();
+      (equipped ? sheatheItem(item) : drawItem(item)).catch((err) => console.error(`${MODULE_ID} | draw/sheathe failed`, err));
+    });
+    rowControls(li).insertBefore(a, rowControls(li).firstChild);
+  }
+}
+
+/**
+ * Masterwork control on every weapon and armour row (worn OR carried). RR p159
+ * masterwork is DATA, not a roll-time overlay (see config.MASTERWORK) — the
+ * control opens a picker that stamps the chosen tier onto the item's own core
+ * fields (bonus / damage / AC / weight), reversibly.
+ */
+function injectMasterworkControls(tab, actor) {
+  if (!actor?.isOwner) return;
+  for (const li of tab.querySelectorAll("li.item[data-item-id]")) {
+    const item = actor.items.get(li.dataset.itemId);
+    if (!item || (item.type !== "weapon" && item.type !== "armor") || li.querySelector(".acks-equipment-mw")) continue;
+    const active = !!item.getFlag?.(MODULE_ID, ITEM_FLAGS.MASTERWORK);
+    const a = el("a", `item-control acks-equipment-mw${active ? " acks-equipment-mw--active" : ""}`);
+    a.innerHTML = `<i class="fas fa-gem"></i>`;
+    a.dataset.tooltip = game.i18n.localize("ACKS-EQUIPMENT.masterwork.control");
+    a.addEventListener("click", (ev) => {
+      ev.preventDefault();
+      ev.stopPropagation();
+      openMasterworkDialog(item).catch((err) => console.error(`${MODULE_ID} | masterwork failed`, err));
+    });
+    rowControls(li).insertBefore(a, rowControls(li).firstChild);
+  }
+}
+
+/** Pick a masterwork tier (or None) for an item, then apply it. */
+async function openMasterworkDialog(item) {
+  const cur = item.getFlag?.(MODULE_ID, ITEM_FLAGS.MASTERWORK)?.tier ?? "none";
+  const buttons = ["none", ...masterworkTiersFor(item.type)].map((t) => ({
+    action: t,
+    label: game.i18n.localize(`ACKS-EQUIPMENT.masterwork.${t}`),
+    default: t === cur,
+  }));
+  const choice = await foundry.applications.api.DialogV2.wait({
+    window: { title: game.i18n.format("ACKS-EQUIPMENT.masterwork.title", { name: item.name }) },
+    content: `<p>${game.i18n.localize("ACKS-EQUIPMENT.masterwork.prompt")}</p>`,
+    buttons,
+    rejectClose: false,
+  }).catch(() => null);
+  if (choice) await setMasterwork(item, choice);
+}
+
+/**
+ * Strap control on every shield row (gated on the shield-variant overlay). A
+ * shield can be carried IN HAND (ready) or slung to BACK / FRONT; strapped it
+ * costs no hand (RR/JJ p407), which is how a hand is freed for a torch while the
+ * shield still rides. Cycles hand → back → front, skipping any position the
+ * shield cannot take (a kite/phalanx shield has no back).
+ */
+function injectStrapControls(tab, actor) {
+  if (!actor?.isOwner || !overlayEnabled()) return;
+  for (const li of tab.querySelectorAll("li.item[data-item-id]")) {
+    const item = actor.items.get(li.dataset.itemId);
+    if (item?.type !== "armor" || item.system?.type !== "shield" || li.querySelector(".acks-equipment-strap")) continue;
+    const strap = strapOf(item);
+    const a = el("a", `item-control acks-equipment-strap acks-equipment-strap--${strap}`);
+    a.innerHTML = `<i class="fas ${strap === "hand" ? "fa-hand" : "fa-shield-halved"}"></i> ${game.i18n.localize(`ACKS-EQUIPMENT.strap.${strap}`)}`;
+    a.dataset.tooltip = game.i18n.localize("ACKS-EQUIPMENT.strap.cycle");
+    a.addEventListener("click", (ev) => {
+      ev.preventDefault();
+      ev.stopPropagation();
+      cycleStrap(item).catch((err) => console.error(`${MODULE_ID} | strap cycle failed`, err));
+    });
+    rowControls(li).insertBefore(a, rowControls(li).firstChild);
   }
 }
 
@@ -433,10 +586,14 @@ function onRenderCharacterSheet(app, element) {
     // listen on three of them so the system's class name can change freely.
     if (!tab || tab.querySelector(".acks-equipment-wear")) return;
     regroup(app.actor, tab);
-    // Light controls attach to a light source WHEREVER it renders — a torch is
-    // type `item` with no `equipped` field, so it stays in core's carried list,
-    // not a worn bucket. Scan the whole tab (per-row dedupe inside).
-    injectLightControls(tab, app.actor);
+    // These controls attach to gear WHEREVER it renders — a torch stack and a
+    // carried weapon stay in core's own lists, not a worn bucket — so each scans
+    // the whole tab with its own per-row dedupe.
+    injectLightControls(tab, app.actor); // Light a lantern/candle/torch-weapon (needs formation)
+    injectTorchReady(tab, app.actor); // Ready a torch from a stack (formation-independent)
+    injectDrawSheathe(tab, app.actor); // Draw / sheathe every weapon
+    injectMasterworkControls(tab, app.actor); // Masterwork picker (weapons + armour)
+    injectStrapControls(tab, app.actor); // Sling a shield (overlay-gated)
   } catch (err) {
     console.error(`${MODULE_ID} | inventory regrouping failed; core's layout stands`, err);
   }

@@ -3,6 +3,35 @@
 Releases up to and including 0.15.1 predate this file; see the git history
 and GitHub releases for earlier changes.
 
+## 0.26.0
+
+- **Torch: carry a stack, ready one to wield.** A torch now imports as a carried
+  STACK (a bundle you keep in a pack), not a wielded weapon. A new **Ready** control
+  on the stack pulls one out as a single 1d4 light-weapon you can wield, light, or
+  throw — decrementing the bundle (and clearing it when the last is drawn). Core
+  weapons have no quantity, so this is how a *supply* of torches and a *wielded*
+  torch coexist. (User: "torches can just carry a stack ... a prepare button.")
+- **Per-attack melee/thrown choice.** Thrown melee weapons (hand axe, dagger,
+  javelin, spear, warhammer) now import as BOTH melee and missile, so the system's
+  own range selector offers "swing or throw" per attack. The Annotate macro
+  reconciles existing core weapons the same way. Thrown weapons also add **Strength
+  to damage** when hurled (RR p298) — which the system's missile path omits —
+  excluding splash flasks (oil, holy water), exactly as RAW carves them out.
+- **Unarmed strike.** An empty-handed character now shows an **Unarmed Strike** in
+  the Worn & Wielded section (1d3 nonlethal, RR p299) — a mode, not the absence of
+  one — that rolls through the system's normal attack pipeline.
+- **Draw / sheathe controls.** Every weapon row gains a one-click Draw (carried) or
+  Sheathe (wielded) control, alongside grip.
+- **Masterwork picker (RR p159).** Weapon and armour rows gain a Masterwork control
+  that stamps the chosen tier onto the item's own core fields — +1 hit
+  (`system.bonus`), +1 damage (a "1d6 + 1" string), +1 AC (`aac.value`), −1 stone
+  (`weight6`) — reversibly. Masterwork stays DATA, not a roll-time overlay, by
+  design; this is just the convenient way to write it.
+- **Per-shield strap toggle (JJ p407).** Under the shield-variant overlay, each
+  shield row gains an in-hand / back / front control. A strapped shield costs no
+  hand, so this is how a hand is freed for a torch while the shield still rides.
+- Single-shield violation text corrected to the RR p141 rule (one shield benefits).
+
 ## 0.25.0
 
 - **Equipment root — `equipmentClass(name)`.** acks-equipment is now the family's

@@ -15,6 +15,8 @@ import { maneuverMods, MANEUVERS } from "./overlays/maneuvers.mjs";
 import * as named from "./overlays/named.mjs";
 import { clearFromPaperDoll } from "./paperdoll.mjs";
 import { consumeForAttack, recoverThrown, isThrownAway, consumeItem } from "./ammo.mjs";
+import { prepareTorch, rollUnarmed, unarmedStrikeData, setMasterwork, masterworkTiersFor, drawItem, sheatheItem } from "./actions.mjs";
+import { cycleStrap, strapOf, canStrap } from "./overlays/shield-variants.mjs";
 import {
   containerReport,
   contentsOf,
@@ -52,6 +54,12 @@ export async function annotateItem(item) {
       [`flags.${MODULE_ID}.${ITEM_FLAGS.DAMAGE_TYPE}`]: base.type || "",
       [`flags.${MODULE_ID}.${ITEM_FLAGS.HANDY}`]: !!base.handy,
       [`flags.${MODULE_ID}.${ITEM_FLAGS.THROWN}`]: !!base.thrown,
+      // A thrown melee weapon is a MISSILE too (RR p296), and core only offers
+      // its melee-vs-thrown range selector when BOTH booleans are set — so
+      // reconcile the core item to the RAW profile. melee/missile are left as-is
+      // for a purely melee or purely missile weapon (base.thrown false).
+      "system.melee": base.melee ?? item.system?.melee ?? false,
+      "system.missile": !!(base.missile || base.thrown),
     });
     return key;
   }
@@ -110,6 +118,18 @@ export function buildApi() {
     recoverThrown,
     isThrownAway,
     consumeItem, // shared decrement primitive (acks-formation burns torches/oil through this)
+    // Sheet actions (also usable from macros): ready a torch from a stack, roll
+    // an unarmed strike, draw/sheathe a weapon, apply masterwork, sling a shield.
+    prepareTorch,
+    rollUnarmed,
+    unarmedStrikeData,
+    drawItem,
+    sheatheItem,
+    setMasterwork,
+    masterworkTiersFor,
+    cycleStrap,
+    strapOf,
+    canStrap,
     // Containers
     containerReport,
     contentsOf,

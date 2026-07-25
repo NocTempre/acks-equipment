@@ -70,7 +70,7 @@
     "violation": {
       "handOverflow": "Not enough hands ({handsUsed}/{budget}); free up: {items}.",
       "multipleArmor": "Only one suit of armour may be worn at a time ({items}).",
-      "tooManyShields": "A combatant may wield at most two shields ({items}).",
+      "tooManyShields": "A combatant benefits from only ONE shield at a time (RR p. 141); a strapped spare protects situationally but grants no ordinary AC ({items}).",
       "shieldNoStyle": "This character lacks the Weapon & Shield fighting style, so the shield grants no Armor Class benefit ({items}).",
       "weaponNotProficient": "{items}: weapon unusable by this character's class.",
       "armorNotProficient": "{items} is heavier than this character's armour proficiency (max: {max}).",
@@ -163,6 +163,32 @@
       "light": "Light this source (uses a free hand)",
       "douse": "Douse / re-light",
       "shutter": "Open / close the lantern shutter"
+    },
+    "action": {
+      "unarmed": "Unarmed Strike",
+      "unarmedHint": "Make an unarmed strike (1d3 nonlethal — RR p. 299).",
+      "draw": "Draw (equip)",
+      "sheathe": "Sheathe (unequip)",
+      "readied": "Readied a torch from the stack.",
+      "readyHint": "Ready a torch — pull one from the stack as a 1d4 light-weapon you can wield, light, or throw.",
+      "noStock": "No {item} left in the stack to ready."
+    },
+    "masterwork": {
+      "control": "Masterwork (RR p. 159)",
+      "title": "Masterwork — {name}",
+      "prompt": "Apply a masterwork quality. It is written onto the item's own fields (to-hit, damage, AC, or weight) and can be cleared back to None at any time.",
+      "none": "None (standard)",
+      "weaponToHit": "+1 to hit (80gp)",
+      "weaponToDamage": "+1 damage (80gp)",
+      "weaponBoth": "+1 to hit and damage (650gp)",
+      "armorLight": "−1 stone weight (80gp)",
+      "armorAC": "+1 AC (650gp)"
+    },
+    "strap": {
+      "cycle": "Carry position — click to cycle in hand / on the back / on the front. A strapped shield costs no hand.",
+      "hand": "In hand",
+      "back": "Back",
+      "front": "Front"
     }
   },
   "ACKS-EQUIPMENT.container.expand": "Show contents",

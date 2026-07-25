@@ -138,6 +138,22 @@ export function computeAttackMods(actor, attData, options = {}) {
     }
   }
 
+  // Thrown weapons add STRENGTH to DAMAGE (RR p298: "Apply the attribute bonus
+  // or penalty for Strength ... to damage rolls with thrown weapons"), but core's
+  // missile branch pushes no str.mod (correct for bows, wrong for a hurled axe).
+  // So when a thrown weapon is used at range, contribute str.mod to its damage.
+  // Splash flasks (burning oil, holy water) are excluded by RAW and already carry
+  // `noDamageBonus`, so the strip above owns them and this never doubles up.
+  if (item && options.type === "missile" && profile.thrown &&
+      !profile.special?.includes("splash") && !profile.special?.includes("noDamageBonus")) {
+    const str = Number(actor.system?.scores?.str?.mod ?? 0);
+    if (str) {
+      const base = damage ?? item.system?.damage ?? profile.damage ?? "1d6";
+      damage = str > 0 ? `${base} + ${str}` : `${base} - ${Math.abs(str)}`;
+      notes.push(`thrown weapon: Strength ${str > 0 ? "+" : "−"}${Math.abs(str)} to damage`);
+    }
+  }
+
   if (!bonusDelta && !damage) return null;
   return { bonusDelta, damage, notes };
 }

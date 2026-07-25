@@ -66,11 +66,17 @@ export function equipmentClass(name) {
   if (key) {
     const w = WEAPONS[key];
     const special = w.special ?? [];
-    return {
-      type: "weapon",
+    // A THROWN melee weapon is usable as a missile too (RR p296: "weapon
+    // proficiency includes the ability to use it as a missile weapon"), so it
+    // imports with BOTH melee and missile set — which is exactly what makes core
+    // present its melee-vs-thrown range selector (item.mjs rollWeapon gates on
+    // `system.missile && system.melee`). A pure-thrown missile (dart, oil) is
+    // already missile-only.
+    const missile = !!(w.missile || w.thrown);
+    const base = {
       damage: w.damage || "",
       melee: !!w.melee,
-      missile: !!w.missile,
+      missile,
       thrown: !!w.thrown,
       handy: !!w.handy,
       damageType: w.type || "",
@@ -78,6 +84,14 @@ export function equipmentClass(name) {
       splash: special.includes("splash"),
       consumable: special.includes("consumable"),
     };
+    // A TORCH is carried as a STACK — a bundle you keep in a pack — and only
+    // becomes a 1d4 light-WEAPON when one is READIED for use (see prepareTorch in
+    // actions.mjs). So the root imports it as a light ITEM (quantity-bearing),
+    // recording the weapon stats the prepare step needs under `prepareAs`. Torch
+    // is the only weapon-table entry tagged `light`. User, 2026-07-25: "torches
+    // can just carry a stack".
+    if (base.light) return { type: "item", prepareAs: "weapon", ...base };
+    return { type: "weapon", ...base };
   }
   // A lantern (device) or candle stays a plain item but is flagged a light
   // source so the content/sheet layers can treat it as equippable/holdable.
