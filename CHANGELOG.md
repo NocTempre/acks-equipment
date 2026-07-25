@@ -3,6 +3,30 @@
 Releases up to and including 0.15.1 predate this file; see the git history
 and GitHub releases for earlier changes.
 
+## 0.25.0
+
+- **Equipment root — `equipmentClass(name)`.** acks-equipment is now the family's
+  single "equipment root": given a name it says which core item type a piece of
+  gear should become and the stats that type needs (a torch is a 1d4
+  light-weapon; military oil and holy water are thrown splash flasks; a lantern
+  or candle is a light-bearing item). acks-content consumes this instead of
+  re-encoding the rules, so the mechanics live in exactly one place.
+- **Torch as an equippable weapon (RR p148/298).** A torch wielded or thrown
+  deals 1d4 and gains NO damage bonus from high STR, class, Backstabbing, or the
+  like — folded into the attack as a cancelling term so only the *positive* bonus
+  is stripped (a penalty still applies).
+- **Thrown/splash consumption.** Firing/throwing now consumes correctly for every
+  thrown item, not just melee-and-thrown ones: a single splash flask (military
+  oil, holy water) SHATTERS (spent, not recoverable); a reusable thrown weapon
+  (hand axe, bola) is marked recoverable; a stack decrements. Holy water grounded
+  to 1d8 (RR p268/297) and military oil marked no-damage-bonus (RR p298).
+- **Single-shield rule (RR p141).** Only one shield ever benefits — an in-hand
+  shield plus a back-strapped one is still two shields and is now flagged
+  (previously two passed silently). A strapped shield costs no hand, so a shield
+  and a held light legitimately coexist.
+- **`consumeItem(item, n)`** exported — the shared decrement primitive
+  acks-formation reuses to burn torches/oil through the same code path as ammo.
+
 ## 0.20.0
 
 - **Proficiency enforcement is ON by default.** The `Proficiency penalties`

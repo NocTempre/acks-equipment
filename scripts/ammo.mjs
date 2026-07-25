@@ -46,6 +46,21 @@ async function setRounds(item, n) {
   return item.setFlag(MODULE_ID, "rounds", v);
 }
 
+/**
+ * Consume `n` of a stackable/consumable item (a lit torch, a flask of lamp oil).
+ * The shared decrement primitive other modules reuse instead of hand-rolling an
+ * `item.update` — acks-formation calls this via `globalThis.acksEquipment` so the
+ * torch/oil burn-down and the ammunition tracker stay one code path. Degrades to
+ * a no-op count of 1 for a single non-stackable item.
+ * @returns {Promise<number>} the remaining count after consumption.
+ */
+export async function consumeItem(item, n = 1) {
+  if (!item) return 0;
+  const left = Math.max(0, roundsOf(item) - n);
+  await setRounds(item, left);
+  return left;
+}
+
 function notify(key, data) {
   const full = `ACKS-EQUIPMENT.ammo.${key}`;
   const msg = game.i18n?.has?.(full) ? game.i18n.format(full, data) : full;
@@ -85,13 +100,23 @@ export async function consumeForAttack(actor, item, profile, options = {}) {
   if (options.type !== "missile") return; // only ranged/thrown attacks consume
   if (!actor || !item) return;
 
-  // A melee weapon used at range is being THROWN (hand axe, javelin, dart, rock).
-  const thrown = profile?.thrown || profile?.melee;
-  if (thrown && profile?.melee) {
+  // A weapon used at range (a "missile" attack) is being THROWN — this covers a
+  // melee-and-thrown weapon (hand axe, javelin), a pure-thrown missile (dart,
+  // rock, bola), AND a thrown consumable (military oil, holy water). How it is
+  // spent depends on the item:
+  //   - a stack of more than one → decrement by one (you threw one of the pile);
+  //   - a single SPLASH/consumable flask → it SHATTERS: spent, not recoverable;
+  //   - a single reusable weapon (hand axe, bola) → marked thrown-away so it can
+  //     be picked back up (RAW has no auto-recovery; the Recover macro clears it).
+  if (profile?.thrown || profile?.melee) {
     const rounds = roundsOf(item);
+    const shatters = profile?.special?.includes("splash") || profile?.special?.includes("consumable");
     if (rounds > 1) {
       await setRounds(item, rounds - 1);
-      notify("threwStack", { item: item.name, left: rounds - 1 });
+      notify(shatters ? "usedStack" : "threwStack", { item: item.name, left: rounds - 1 });
+    } else if (shatters) {
+      await setRounds(item, 0); // shattered flask — gone, not recoverable
+      notify("usedLast", { item: item.name });
     } else {
       await markThrown(item);
       notify("threwSingle", { item: item.name });

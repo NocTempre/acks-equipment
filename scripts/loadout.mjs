@@ -202,8 +202,12 @@ export function getLoadout(actor, opts = {}) {
   if (suits.length > 1) {
     violations.push({ type: VIOLATION.MULTIPLE_ARMOR, items: suits.slice(0, -1) }); // keep the last-equipped
   }
-  if (shields.length > 2) {
-    violations.push({ type: VIOLATION.TOO_MANY_SHIELDS, items: shields.slice(2) });
+  // RAW (RR p141): a character benefits from only ONE shield at a time. This
+  // holds however a shield is carried — an in-hand shield PLUS a back-strapped
+  // one is still two shields — so count every equipped shield, strapped or not,
+  // and flag all but the last-equipped (which keeps the benefit).
+  if (shields.length > 1) {
+    violations.push({ type: VIOLATION.TOO_MANY_SHIELDS, items: shields.slice(0, -1) });
   }
   if (hasShield && !canUseShieldStyle(actor, trained)) {
     violations.push({ type: VIOLATION.SHIELD_NO_STYLE, items: shields, advisory: true });

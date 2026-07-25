@@ -39,6 +39,52 @@ export function weaponKey(item) {
   return null;
 }
 
+/** Exact-or-alias key resolution — no fuzzy substring match (see equipmentClass). */
+function strictWeaponKey(name) {
+  const key = normalizeName(name);
+  if (WEAPONS[key]) return key;
+  if (WEAPON_ALIASES[key] && WEAPONS[WEAPON_ALIASES[key]]) return WEAPON_ALIASES[key];
+  return null;
+}
+
+/**
+ * The family's EQUIPMENT ROOT (user, 2026-07-24: "equipment is just a special
+ * class of item; they should share a root"). Given only a NAME, say which core
+ * item type a piece of gear should become and the stats that type needs — so a
+ * torch (a 1d4 light-weapon) and a flask of military oil / holy water (thrown
+ * splash flasks) import as WEAPONS, while a lantern/candle stay plain
+ * light-bearing items. acks-content CONSUMES this rather than re-hardcoding the
+ * rules; the WEAPONS config here stays the single source of truth. Uses strict
+ * (exact/alias) matching so ordinary gear is never reclassified by a loose
+ * substring hit.
+ * @returns {{type:string, damage?:string, melee?:boolean, missile?:boolean,
+ *   thrown?:boolean, handy?:boolean, light?:boolean, splash?:boolean,
+ *   consumable?:boolean, damageType?:string}|null} null if unrecognised.
+ */
+export function equipmentClass(name) {
+  const key = strictWeaponKey(name);
+  if (key) {
+    const w = WEAPONS[key];
+    const special = w.special ?? [];
+    return {
+      type: "weapon",
+      damage: w.damage || "",
+      melee: !!w.melee,
+      missile: !!w.missile,
+      thrown: !!w.thrown,
+      handy: !!w.handy,
+      damageType: w.type || "",
+      light: special.includes("light"),
+      splash: special.includes("splash"),
+      consumable: special.includes("consumable"),
+    };
+  }
+  // A lantern (device) or candle stays a plain item but is flagged a light
+  // source so the content/sheet layers can treat it as equippable/holdable.
+  if (/\b(lantern|candle)\b/i.test(name)) return { type: "item", light: true };
+  return null;
+}
+
 /**
  * Build the resolved profile for a weapon item.
  * @returns {{key,size,melee,missile,thrown,handy,twoHandedForced,damage,damage2h,type,cat,special,reqStr}}

@@ -147,6 +147,8 @@
       "outOf": "Out of ammunition for {item}.",
       "threwStack": "Threw {item} ({left} left).",
       "threwSingle": "{item} thrown — recover it to reclaim its weight.",
+      "usedStack": "Used {item} ({left} left).",
+      "usedLast": "{item}: last one used up.",
       "recovered": "Recovered: {items}.",
       "recoveredNone": "No thrown weapons to recover."
     },

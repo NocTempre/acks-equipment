@@ -120,6 +120,24 @@ export function computeAttackMods(actor, attData, options = {}) {
     notes.push(`two-handed grip (${profile.damage2h})`);
   }
 
+  // No-damage-bonus weapons (a torch, RR p148/p300): it deals its bare die and
+  // gains NO bonus from STR, class, or the like. Core's rollAttack pushes the
+  // weapon's damage string, THEN str.mod (melee), THEN damage.mod.melee/missile
+  // — so fold a cancelling negative into the damage string to strip only the
+  // POSITIVE bonus (a STR/class PENALTY still applies — it is not a bonus).
+  if (item && profile.special?.includes("noDamageBonus") && (options.type === "melee" || options.type === "missile")) {
+    const base = damage ?? item.system?.damage ?? profile.damage ?? "1d4";
+    const str = options.type === "melee" ? Math.max(0, Number(actor.system?.scores?.str?.mod ?? 0)) : 0;
+    const classMod = Math.max(0, Number(actor.system?.damage?.mod?.[options.type] ?? 0));
+    const strip = str + classMod;
+    if (strip > 0) {
+      damage = `${base} - ${strip}`;
+      notes.push(`no damage bonus (torch): −${strip}`);
+    } else if (damage == null) {
+      damage = base; // ensure the (unchanged) die is carried so the note stands
+    }
+  }
+
   if (!bonusDelta && !damage) return null;
   return { bonusDelta, damage, notes };
 }

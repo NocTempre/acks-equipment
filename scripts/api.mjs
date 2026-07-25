@@ -7,14 +7,14 @@
  */
 import { MODULE_ID, HOOKS, EFFECT_DOMAINS, ITEM_FLAGS } from "./constants.mjs";
 import { getLoadout, VIOLATION, trainedStyles, specializedStyles, handBudget, heldLightHands } from "./loadout.mjs";
-import { classifyWeapon, handCost, focusGroup, weaponKey } from "./profiles.mjs";
+import { classifyWeapon, handCost, focusGroup, weaponKey, equipmentClass } from "./profiles.mjs";
 import { weaponProficiency, isWeaponProficient, armorMax, isArmorProficient, thiefSkillsGated, isArmorGatedSkill } from "./proficiency.mjs";
 import { refreshLoadout } from "./enforce.mjs";
 import { planItemLoss, stonesAtRisk, isVulnerable, materialOf } from "./overlays/item-loss.mjs";
 import { maneuverMods, MANEUVERS } from "./overlays/maneuvers.mjs";
 import * as named from "./overlays/named.mjs";
 import { clearFromPaperDoll } from "./paperdoll.mjs";
-import { consumeForAttack, recoverThrown, isThrownAway } from "./ammo.mjs";
+import { consumeForAttack, recoverThrown, isThrownAway, consumeItem } from "./ammo.mjs";
 import {
   containerReport,
   contentsOf,
@@ -83,6 +83,7 @@ export function buildApi() {
     VIOLATION,
     // Profiles
     classifyWeapon,
+    equipmentClass, // the equipment "root": name → core type + stats (acks-content consumes it)
     handCost,
     focusGroup,
     weaponKey,
@@ -108,6 +109,7 @@ export function buildApi() {
     consumeForAttack,
     recoverThrown,
     isThrownAway,
+    consumeItem, // shared decrement primitive (acks-formation burns torches/oil through this)
     // Containers
     containerReport,
     contentsOf,

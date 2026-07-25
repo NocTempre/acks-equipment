@@ -51,7 +51,7 @@ export const WEAPON_FOCUS_GROUPS = Object.freeze({
   macesflailshammers: ["flail", "mace", "morningstar", "warhammer"],
   swordsdaggers: ["knife", "dagger", "silverdagger", "shortsword", "sword", "twohandedsword"],
   bowscrossbows: ["compositebow", "longbow", "shortbow", "crossbow", "arbalest"],
-  slingsthrown: ["sling", "staffsling", "bola", "dart", "rock", "militaryoil"],
+  slingsthrown: ["sling", "staffsling", "bola", "dart", "rock", "militaryoil", "holywater"],
   spearspolearms: ["javelin", "lance", "polearm", "spear"],
 });
 
@@ -92,7 +92,15 @@ export const WEAPONS = Object.freeze({
   spear: { size: SIZE.MEDIUM, melee: true, thrown: true, damage: "1d6", damage2h: "1d8", type: "piercing", cat: WEAPON_CATEGORY.SPEAR_POLEARM, special: ["impact", "long", "thrown"] },
   // Other weapons
   bola: { size: SIZE.SMALL, missile: true, thrown: true, damage: "1d2", type: "bludgeoning", cat: WEAPON_CATEGORY.OTHER, handy: true, special: ["entangling", "thrown"] },
-  militaryoil: { size: SIZE.SMALL, missile: true, thrown: true, damage: "1d8", type: "fire", cat: WEAPON_CATEGORY.OTHER, handy: true, special: ["thrown", "splash"] },
+  // Military (burning) oil: 1d8 direct + 1d8 next round, 1d3 splash (RR p297).
+  // RR p298: oil/holy water/torches "do not gain a bonus to damage from high
+  // STR, class, Backstabbing, or any similar effect" → noDamageBonus.
+  militaryoil: { size: SIZE.SMALL, missile: true, thrown: true, damage: "1d8", type: "fire", cat: WEAPON_CATEGORY.OTHER, handy: true, special: ["thrown", "splash", "noDamageBonus"] },
+  // Holy water: a thrown one-shot flask that SHATTERS on use. RR p268/p297: a
+  // chaotic enchanted creature directly struck "suffers 1d8 damage for 2 rounds"
+  // (same rules as burning oil), harmless to other creatures; 1d3 splash; no
+  // STR/class damage bonus (RR p298). type "holy" (only vs chaotic enchanted).
+  holywater: { size: SIZE.SMALL, missile: true, thrown: true, damage: "1d8", type: "holy", cat: WEAPON_CATEGORY.OTHER, handy: true, special: ["thrown", "splash", "consumable", "noDamageBonus"] },
   cestus: { size: SIZE.SMALL, melee: true, damage: "1d3", type: "bludgeoning", cat: WEAPON_CATEGORY.OTHER, special: ["worn"] },
   net: { size: SIZE.MEDIUM, melee: true, thrown: true, damage: "", type: "", cat: WEAPON_CATEGORY.OTHER, twoHandedForced: true, special: ["entangling", "thrown"] },
   rock: { size: SIZE.MEDIUM, missile: true, thrown: true, damage: "1d3", type: "bludgeoning", cat: WEAPON_CATEGORY.OTHER, handy: true, special: ["thrown"] },
@@ -101,6 +109,11 @@ export const WEAPONS = Object.freeze({
   staffsling: { size: SIZE.MEDIUM, missile: true, melee: true, damage: "1d4", damage2h: "1d6", type: "bludgeoning", cat: WEAPON_CATEGORY.OTHER, twoHandedForced: true },
   staff: { size: SIZE.MEDIUM, melee: true, damage: "1d4", damage2h: "1d6", type: "bludgeoning", cat: WEAPON_CATEGORY.OTHER },
   whip: { size: SIZE.SMALL, melee: true, damage: "1d2", type: "slashing", cat: WEAPON_CATEGORY.OTHER, special: ["flexible"] },
+  // A lit torch used as a weapon deals 1d4 (RR p148) and — thrown or wielded —
+  // gains NO damage bonus from STR, class, Backstabbing, or the like (RR p300,
+  // stated for the thrown case; extended to melee per Judge ruling). `thrown`
+  // so it can be hurled; `light` marks it a light source for the sheet controls.
+  torch: { size: SIZE.SMALL, melee: true, thrown: true, damage: "1d4", type: "fire", cat: WEAPON_CATEGORY.OTHER, special: ["thrown", "noDamageBonus", "light"] },
 });
 
 /** Name aliases → canonical weapon key (tolerant of core pack naming). */
@@ -117,6 +130,8 @@ export const WEAPON_ALIASES = Object.freeze({
   quarterstaff: "staff",
   morningstar2: "morningstar",
   compbow: "compositebow",
+  holywaterflask: "holywater",
+  vialofholywater: "holywater",
 });
 
 /** Armour weight categories (core `system.type`) ordered light→heavy. */

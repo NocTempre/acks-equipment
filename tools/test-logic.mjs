@@ -60,7 +60,7 @@ Object.defineProperty(globalThis.CONST, "ACTIVE_EFFECT_MODES", {
 });
 
 const S = new URL("../scripts/", import.meta.url);
-const { classifyWeapon, handCost } = await import(new URL("profiles.mjs", S));
+const { classifyWeapon, handCost, equipmentClass } = await import(new URL("profiles.mjs", S));
 const { getLoadout, VIOLATION } = await import(new URL("loadout.mjs", S));
 const { buildLoadoutChanges } = await import(new URL("effects.mjs", S));
 const { weaponProficiency, isWeaponProficient, armorMax, isArmorProficient, thiefSkillsGated, swashbucklingAC } = await import(new URL("proficiency.mjs", S));
@@ -110,6 +110,18 @@ check("sling handy 1 hand", handCost(classifyWeapon(weapon("Sling", { missile: t
 check("dagger tiny thrown", (() => { const d = classifyWeapon(weapon("Dagger", { melee: true })); return d.size === "tiny" && d.thrown; })());
 check("two-handed sword large 2 hands", handCost(classifyWeapon(weapon("Two-Handed Sword", { melee: true }))) === 2);
 check("override size/hands flag wins", handCost(classifyWeapon(weapon("Stick", { flags: { size: "large", hands: 2 } }))) === 2);
+
+// equipmentClass: the family's equipment "root" (name → core type + stats).
+const torchClass = equipmentClass("Torch");
+check("equipmentClass: torch is a 1d4 light-weapon (melee+thrown)", torchClass?.type === "weapon" && torchClass.damage === "1d4" && torchClass.light && torchClass.melee && torchClass.thrown);
+const oilClass = equipmentClass("Military Oil");
+check("equipmentClass: military oil is a thrown splash weapon", oilClass?.type === "weapon" && oilClass.splash && oilClass.missile && oilClass.thrown);
+const hwClass = equipmentClass("Holy Water");
+check("equipmentClass: holy water is a thrown splash consumable (1d8)", hwClass?.type === "weapon" && hwClass.damage === "1d8" && hwClass.splash && hwClass.consumable);
+check("equipmentClass: a lantern stays a light-bearing item", equipmentClass("Lantern")?.type === "item" && equipmentClass("Lantern").light === true);
+check("equipmentClass: a candle stays a light-bearing item", equipmentClass("Candle")?.type === "item" && equipmentClass("Candle").light === true);
+check("equipmentClass: plain oil (lantern fuel) is NOT a weapon", equipmentClass("Oil") === null);
+check("equipmentClass: ordinary gear is unrecognised (no fuzzy hit)", equipmentClass("Grappling Hook") === null && equipmentClass("Waterskin") === null);
 
 // loadout scenarios
 let lo = getLoadout(actor([weapon("Sword", { melee: true, id: "sw" }), armor("Shield", "shield", { ac: 1, id: "sh" })]));
@@ -376,6 +388,32 @@ globalThis.acksLib = undefined;
 const phalNoLibAC = buildLoadoutChanges(phal, phalLo).filter((c) => c.key === "system.aac.mod").reduce((n, c) => n + Number(c.value), 0);
 check("no acks-lib → mounted rules dormant, phalanx AC stands", phalNoLibAC === 1);
 globalThis.acksLib = priorLib;
+
+// --- single-shield rule (RR p141) + shield-frees-a-hand-for-a-light -----------
+// A character benefits from only ONE shield, however carried. Two in hand:
+check(
+  "two shields → TOO_MANY_SHIELDS (single-shield rule)",
+  getLoadout(wsActor([shieldItem("Shield", "standard", "hand"), shieldItem("Buckler", "buckler", "hand")], true))
+    .violations.some((v) => v.type === VIOLATION.TOO_MANY_SHIELDS),
+);
+// One in hand PLUS one strapped on the back is STILL two shields — the strapped
+// one costing no hand must not become a loophole for a second shield.
+check(
+  "in-hand + back-strapped is still two shields",
+  getLoadout(wsActor([shieldItem("Phalanx Shield", "phalanx", "hand"), shieldItem("Auxiliary Shield", "auxiliary", "back")], true))
+    .violations.some((v) => v.type === VIOLATION.TOO_MANY_SHIELDS),
+);
+// The legitimate shield+light case: hold a light (formation) in one hand, a
+// one-handed weapon in the other, and a shield strapped on the back. All three
+// coexist — the strapped shield frees the hand the light needs — and it is still
+// a single shield. Mock formation's held-light count for this actor.
+const priorFormation = globalThis.acksFormation;
+globalThis.acksFormation = { heldLightCount: () => 1 };
+const shieldLight = getLoadout(wsActor([weapon("Sword", { melee: true, id: "sl" }), shieldItem("Auxiliary Shield", "auxiliary", "back")], true));
+check("shield+light: sword + strapped shield + held light all fit (2 hands, legal)", shieldLight.handsUsed === 2 && shieldLight.legal);
+check("shield+light: the lone sword yields its 2H grip to the light", shieldLight.weapons[0].wieldTwoHanded === false);
+check("shield+light: still a single shield (no violation)", !shieldLight.violations.some((v) => v.type === VIOLATION.TOO_MANY_SHIELDS));
+globalThis.acksFormation = priorFormation;
 
 // --- shield ENCUMBRANCE (enc / encItem / frontEnc / mountEnc) -----------------
 // The variant table carried these from the start with nothing reading them, so
@@ -1046,7 +1084,7 @@ check("doll plan: both hands full -> leave the player's placement alone",
 
 SETTINGS_STATE.ammoTracking = true;
 globalThis.ui = globalThis.ui ?? { notifications: { info: () => {}, warn: () => {}, error: () => {} } };
-const { consumeForAttack, launcherAmmoPattern, roundsOf, isThrownAway, recoverThrown } =
+const { consumeForAttack, launcherAmmoPattern, roundsOf, isThrownAway, recoverThrown, consumeItem } =
   await import(new URL("ammo.mjs", S));
 
 // A launcher's ammo type is resolved from category/name.
@@ -1095,6 +1133,27 @@ const ammoDarts = trackItem("Darts", { melee: true, missile: true, quantity: { v
 await consumeForAttack(withItems([ammoDarts]), ammoDarts, classifyWeapon(ammoDarts), { type: "missile" });
 check("a stackable thrown weapon decrements", ammoDarts._sys.quantity.value === 4);
 check("a stackable thrown weapon is not marked thrown-away", !isThrownAway(ammoDarts));
+
+// A pure-thrown SPLASH consumable (military oil) SHATTERS — spent, not marked
+// for recovery (you cannot pick up a broken flask). This is the gap the old
+// `profile.melee` gate left open: oil is missile-only, so it was never consumed.
+const oilFlask = trackItem("Military Oil", { missile: true, melee: false, quantity: { value: 1 } });
+await consumeForAttack(withItems([oilFlask]), oilFlask, classifyWeapon(oilFlask), { type: "missile" });
+check("a single splash flask is spent (0), not thrown-away", oilFlask._sys.quantity.value === 0 && !isThrownAway(oilFlask));
+
+const oilStack = trackItem("Military Oil", { missile: true, melee: false, quantity: { value: 3 } });
+await consumeForAttack(withItems([oilStack]), oilStack, classifyWeapon(oilStack), { type: "missile" });
+check("a stack of splash flasks decrements", oilStack._sys.quantity.value === 2);
+
+// A pure-thrown REUSABLE weapon (bola) is recoverable, unlike a splash flask.
+const bola = trackItem("Bola", { missile: true, melee: false, quantity: { value: 1 } });
+await consumeForAttack(withItems([bola]), bola, classifyWeapon(bola), { type: "missile" });
+check("a single reusable thrown weapon (bola) is marked thrown-away", isThrownAway(bola));
+
+// consumeItem: the shared decrement primitive acks-formation reuses.
+const torchStack = trackItem("Torch", { quantity: { value: 6 } });
+check("consumeItem decrements a stack and returns the remainder", (await consumeItem(torchStack, 1)) === 5 && torchStack._sys.quantity.value === 5);
+check("consumeItem clamps at zero", (await consumeItem(trackItem("Torch", { quantity: { value: 0 } }), 1)) === 0);
 
 // A thrown-away weapon's weight leaves the encumbrance total until recovered.
 const heavyAxe = { ...trackItem("Hand Axe", { flags: { thrownAway: true } }), type: "weapon", system: { weight6: 6, cost: 5, quantity: { value: 1 } } };
@@ -1169,5 +1228,25 @@ check("a held light blocks the two-handed grip", oneLight.weapons[0].wieldTwoHan
 const overHand = getLoadout(withItems([weapon("Sword", { melee: true, id: "hl3" }), weapon("Dagger", { melee: true, id: "hl4" })]));
 check("torch + two weapons overflows hands", overHand.violations.some((v) => v.type === "handOverflow"));
 delete globalThis.acksFormation;
+
+/* ---------------------------------------------------------------------- */
+/*  Torch as a weapon (RR p148/p300): 1d4, no damage bonus                   */
+/* ---------------------------------------------------------------------- */
+
+const torchProfile = classifyWeapon(weapon("Torch", { melee: true, damage: "1d4" }));
+check("torch classifies as a 1d4 weapon", torchProfile.damage === "1d4");
+check("torch is flagged no-damage-bonus", torchProfile.special?.includes("noDamageBonus"));
+check("torch is throwable", torchProfile.thrown === true);
+
+// A strong character bashing with a torch: the STR damage bonus is stripped.
+const strongTorch = withItems([weapon("Torch", { melee: true, id: "tor1", damage: "1d4" })]);
+strongTorch.system = { scores: { str: { mod: 2 } }, damage: { mod: { melee: 1 } }, details: { level: 1 }, thac0: { bba: 0 } };
+const tmods = computeAttackMods(strongTorch, { item: { _id: "tor1", system: { damage: "1d4", bonus: 0 } } }, { type: "melee" });
+check("torch strips the +3 melee damage bonus", tmods && /1d4 - 3/.test(tmods.damage));
+// A WEAK character keeps the penalty (it is not a bonus).
+const weakTorch = withItems([weapon("Torch", { melee: true, id: "tor2", damage: "1d4" })]);
+weakTorch.system = { scores: { str: { mod: -1 } }, damage: { mod: { melee: 0 } }, details: { level: 1 }, thac0: { bba: 0 } };
+const wmods = computeAttackMods(weakTorch, { item: { _id: "tor2", system: { damage: "1d4", bonus: 0 } }, }, { type: "melee" });
+check("torch keeps a STR penalty (not a bonus)", !wmods || !/1d4 -/.test(wmods.damage ?? "1d4"));
 
 console.log(`test-logic: all ${pass} checks passed`);
