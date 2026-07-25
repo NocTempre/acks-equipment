@@ -70,6 +70,7 @@ export const ITEM_FLAGS = Object.freeze({
   DAMAGE_TYPE: "damageType", // aligns with acks-monsters DAMAGE_TYPES
   HANDY: "handy",
   THROWN: "thrown",
+  THROWN_STATE: "thrownAway", // runtime STATE: this weapon has been thrown and awaits recovery (weight removed)
   SHIELD_VARIANT: "shieldVariant", // JJ overlay: buckler|auxiliary|crescent|heater|kite|phalanx
   STRAP: "strap", // JJ overlay: "hand" | "back" | "front"
   MASTERWORK: "masterwork", // {toHit,toDamage,acWeight,ac}
@@ -111,6 +112,7 @@ export const SETTINGS = Object.freeze({
   // built with it. See proficiency.mjs enforcementActive().
   PROFICIENCY_ENFORCEMENT: "proficiencyEnforcement",
   ROLL_AUTOMATION: "rollAutomation", // wrap rollAttack/rollWeapon
+  AMMO_TRACKING: "ammoTracking", // consume ammunition / mark thrown weapons on a missile attack
   PAPERDOLL_STRATEGY: "paperdollStrategy", // "auto" | "paperdoll" | "fallback"
   PAPERDOLL_CONFIGURED: "paperdollConfigured", // internal: slot layout pushed once; never clobber GM edits
   DEFAULT_HAND_BUDGET: "defaultHandBudget",

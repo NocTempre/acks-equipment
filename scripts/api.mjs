@@ -14,6 +14,7 @@ import { planItemLoss, stonesAtRisk, isVulnerable, materialOf } from "./overlays
 import { maneuverMods, MANEUVERS } from "./overlays/maneuvers.mjs";
 import * as named from "./overlays/named.mjs";
 import { clearFromPaperDoll } from "./paperdoll.mjs";
+import { consumeForAttack, recoverThrown, isThrownAway } from "./ammo.mjs";
 import {
   containerReport,
   contentsOf,
@@ -99,6 +100,10 @@ export function buildApi() {
     MANEUVERS,
     named, // JJ p.399 named arms & armour: true name, guessing, unlock ladder
     clearFromPaperDoll,
+    // Ammunition & thrown-weapon state (RAW: consume on use; manual recovery).
+    consumeForAttack,
+    recoverThrown,
+    isThrownAway,
     // Containers
     containerReport,
     contentsOf,

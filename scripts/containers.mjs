@@ -339,5 +339,12 @@ export function encumbranceDelta6(actor) {
     delta += raw - flat;
   }
 
+  // 3. Thrown-away weapons: a weapon that has been thrown has left the
+  //    wielder's hands and no longer weighs on them until it is recovered
+  //    (ammo.mjs marks it; the Recover action clears it).
+  for (const w of actor.items.filter((i) => i.getFlag?.(MODULE_ID, ITEM_FLAGS.THROWN_STATE))) {
+    delta -= weight6Of(w);
+  }
+
   return delta;
 }

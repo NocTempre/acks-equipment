@@ -61,6 +61,10 @@
       "overlayEnclosingHelm": {
         "name": "Overlay: enclosing helmet",
         "hint": "Heavy helmets impose −1 to surprise rolls and −4 to Listening but grant +2 on Mortal Wounds. Revised Rulebook p. 128."
+      },
+      "ammoTracking": {
+        "name": "Track ammunition & thrown weapons",
+        "hint": "On a missile attack, decrement the matching ammunition (arrows/bolts/stones) or the thrown weapon by one. A single thrown weapon (hand axe, javelin) is marked as thrown — unequipped and weightless until recovered — rather than destroyed. Recovery is manual (Recover Thrown Weapons macro); RAW specifies no automatic recovery. Requires libWrapper."
       }
     },
     "violation": {
@@ -137,6 +141,14 @@
       "namedAdvanced": "{item} reveals more of its power to {name}.",
       "namedRevealed": "{item} answers to its true name — its full powers awaken.",
       "openDoll": "Open the Paper Doll"
+    },
+    "ammo": {
+      "fired": "{ammo}: {left} left.",
+      "outOf": "Out of ammunition for {item}.",
+      "threwStack": "Threw {item} ({left} left).",
+      "threwSingle": "{item} thrown — recover it to reclaim its weight.",
+      "recovered": "Recovered: {items}.",
+      "recoveredNone": "No thrown weapons to recover."
     }
   },
   "ACKS-EQUIPMENT.container.expand": "Show contents",

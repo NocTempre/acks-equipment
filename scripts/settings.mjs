@@ -43,6 +43,15 @@ export function registerSettings() {
     default: true,
   });
 
+  game.settings.register(MODULE_ID, SETTINGS.AMMO_TRACKING, {
+    name: L("ammoTracking.name"),
+    hint: L("ammoTracking.hint"),
+    scope: "world",
+    config: true,
+    type: Boolean,
+    default: true,
+  });
+
   game.settings.register(MODULE_ID, SETTINGS.PAPERDOLL_STRATEGY, {
     name: L("paperdollStrategy.name"),
     hint: L("paperdollStrategy.hint"),

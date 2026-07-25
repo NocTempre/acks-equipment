@@ -1040,4 +1040,77 @@ check("doll plan: unequipped gear has no slot", planDollSlot(dollActor, uSpare, 
 check("doll plan: both hands full -> leave the player's placement alone",
   planDollSlot(dollActor, uAxe, { MAIN_RIGHT: { 0: "u-sw" }, MAIN_LEFT: { 0: "u-sh" } }, rsv) === null);
 
+/* ---------------------------------------------------------------------- */
+/*  Ammunition consumption + thrown-weapon state                            */
+/* ---------------------------------------------------------------------- */
+
+SETTINGS_STATE.ammoTracking = true;
+globalThis.ui = globalThis.ui ?? { notifications: { info: () => {}, warn: () => {}, error: () => {} } };
+const { consumeForAttack, launcherAmmoPattern, roundsOf, isThrownAway, recoverThrown } =
+  await import(new URL("ammo.mjs", S));
+
+// A launcher's ammo type is resolved from category/name.
+check("bow → arrows", launcherAmmoPattern(weapon("Long Bow", { missile: true, melee: false }), classifyWeapon(weapon("Long Bow", { missile: true, melee: false }))).test("Quiver, 20 Arrows"));
+check("crossbow → bolts", launcherAmmoPattern(weapon("Crossbow", { missile: true }), classifyWeapon(weapon("Crossbow", { missile: true }))).test("Case, 20 Bolts"));
+check("sling → stones", launcherAmmoPattern(weapon("Sling", { missile: true }), classifyWeapon(weapon("Sling", { missile: true }))).test("30 Sling Stones"));
+check("a melee sword has no ammo pattern", launcherAmmoPattern(weapon("Sword", { melee: true }), classifyWeapon(weapon("Sword", { melee: true }))) === null);
+
+// A mutable mock item that records updates/flags (ammo consumption writes them).
+const trackItem = (name, over = {}) => {
+  const flags = { ...(over.flags ?? {}) };
+  const sys = { equipped: over.equipped ?? true, melee: over.melee, missile: over.missile, quantity: over.quantity, tags: over.tags ?? [] };
+  return {
+    id: over.id ?? name.replace(/\W/g, ""), name, type: "weapon", system: sys,
+    getFlag: (_m, k) => flags[k],
+    setFlag: async (_m, k, v) => { flags[k] = v; },
+    unsetFlag: async (_m, k) => { delete flags[k]; },
+    update: async (u) => { for (const [p, v] of Object.entries(u)) { if (p === "system.quantity.value") sys.quantity = { ...sys.quantity, value: v }; else if (p.startsWith("flags.")) flags[p.split(".").pop()] = v; else if (p === "system.equipped") sys.equipped = v; } },
+    _flags: flags, _sys: sys,
+  };
+};
+
+// Firing a ammoBow decrements the matching ammoQuiver, not other ammo.
+const ammoQuiver = trackItem("Quiver, 20 Arrows", { quantity: { value: 20 }, equipped: false });
+const ammoBolts = trackItem("Case, 20 Bolts", { quantity: { value: 20 }, equipped: false });
+const ammoBow = trackItem("Long Bow", { missile: true, melee: false });
+const archer = withItems([ammoBow, ammoQuiver, ammoBolts]);
+await consumeForAttack(archer, ammoBow, classifyWeapon(ammoBow), { type: "missile" });
+check("firing a ammoBow spends one arrow", ammoQuiver._sys.quantity.value === 19);
+check("firing a ammoBow leaves the ammoBolts alone", ammoBolts._sys.quantity.value === 20);
+
+// A melee attack consumes nothing.
+await consumeForAttack(archer, ammoBow, classifyWeapon(ammoBow), { type: "melee" });
+check("a melee attack spends no ammo", ammoQuiver._sys.quantity.value === 19);
+
+// A single thrown weapon is MARKED thrown (not destroyed), unequipped.
+const axe = trackItem("Hand Axe", { melee: true, missile: true, tags: [{ title: "Thrown", value: "Thrown" }] });
+const thrower = withItems([axe]);
+await consumeForAttack(thrower, axe, classifyWeapon(axe), { type: "missile" });
+check("a single thrown weapon is marked thrown-away", isThrownAway(axe));
+check("a thrown weapon is unequipped", axe._sys.equipped === false);
+check("a thrown weapon is NOT destroyed", !!thrower.items.find((i) => i.id === axe.id));
+
+// A stackable thrown weapon decrements instead of being marked.
+const ammoDarts = trackItem("Darts", { melee: true, missile: true, quantity: { value: 5 }, tags: [{ title: "Thrown", value: "Thrown" }] });
+await consumeForAttack(withItems([ammoDarts]), ammoDarts, classifyWeapon(ammoDarts), { type: "missile" });
+check("a stackable thrown weapon decrements", ammoDarts._sys.quantity.value === 4);
+check("a stackable thrown weapon is not marked thrown-away", !isThrownAway(ammoDarts));
+
+// A thrown-away weapon's weight leaves the encumbrance total until recovered.
+const heavyAxe = { ...trackItem("Hand Axe", { flags: { thrownAway: true } }), type: "weapon", system: { weight6: 6, cost: 5, quantity: { value: 1 } } };
+heavyAxe.getFlag = (_m, k) => (k === "thrownAway" ? true : undefined);
+const encActor = withItems([heavyAxe]);
+check("a thrown-away weapon subtracts its weight from encumbrance", encumbranceDelta6(encActor) === -6);
+
+// Recover clears the thrown state.
+const recovered = await recoverThrown(thrower);
+check("recover clears the thrown state", !isThrownAway(axe) && recovered.includes("Hand Axe"));
+
+// Off by setting.
+SETTINGS_STATE.ammoTracking = false;
+const q2 = trackItem("Quiver, 20 Arrows", { quantity: { value: 20 }, equipped: false });
+await consumeForAttack(withItems([ammoBow, q2]), ammoBow, classifyWeapon(ammoBow), { type: "missile" });
+check("ammo tracking off → nothing consumed", q2._sys.quantity.value === 20);
+SETTINGS_STATE.ammoTracking = true;
+
 console.log(`test-logic: all ${pass} checks passed`);

@@ -37,6 +37,7 @@ import { classifyWeapon } from "./profiles.mjs";
 import { isWeaponProficient } from "./proficiency.mjs";
 import { hasEffectFlag } from "./effects.mjs";
 import { encumbranceDelta6 } from "./containers.mjs";
+import { consumeForAttack } from "./ammo.mjs";
 
 /** Sizes eligible for Weapon Finesse (RR p. 121). */
 const FINESSE_SIZES = [SIZE.TINY, SIZE.SMALL, SIZE.MEDIUM];
@@ -145,7 +146,20 @@ function onRollAttack(wrapped, attData, options = {}) {
   } catch (err) {
     console.error(`${MODULE_ID} | attack-roll wrap failed; using the unmodified core roll`, err);
   }
-  return wrapped(attData, options);
+  const result = wrapped(attData, options);
+  // Consume ammunition / mark a thrown weapon as a side effect AFTER the roll —
+  // fire-and-forget, self-guarded, so it can never block or fail the attack.
+  try {
+    const realItem = attData?.item?._id ? this.items?.get?.(attData.item._id) : null;
+    if (realItem?.type === "weapon") {
+      consumeForAttack(this, realItem, classifyWeapon(realItem), options).catch((err) =>
+        console.error(`${MODULE_ID} | ammunition consumption failed`, err),
+      );
+    }
+  } catch (err) {
+    console.error(`${MODULE_ID} | ammunition consumption skipped`, err);
+  }
+  return result;
 }
 
 /**
