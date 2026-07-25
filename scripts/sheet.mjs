@@ -115,6 +115,60 @@ function buildWornSection(actor, tab, loadout) {
   return moved ? section : null;
 }
 
+/** A light-source item's formation light type from its name, or null. */
+function lightTypeOf(item) {
+  if (item?.type !== "item") return null;
+  const n = String(item.name ?? "").toLowerCase();
+  if (/lantern/.test(n)) return "lantern";
+  if (/torch/.test(n)) return "torch";
+  if (/candle/.test(n)) return "candle";
+  return null;
+}
+
+/**
+ * Put light controls on each equipped light source — Light / Douse, plus Shutter
+ * for a lantern. These drive acks-formation's light state by actor (the module
+ * owns it; this is the sheet-side control the two-way hook enables). No
+ * formation module, or the actor is not in a party formation → no controls
+ * (nothing to hold the light record). GM/owner authoritative, like the party
+ * sheet's own light buttons.
+ */
+function injectLightControls(list, actor) {
+  const fm = globalThis.acksFormation;
+  if (!fm?.getFormationForActor) return;
+  const formation = fm.getFormationForActor(actor.id);
+  if (!formation) return;
+  const mine = (formation.lights ?? []).filter((l) => l.bearerId === actor.id);
+  for (const li of list.querySelectorAll("li.item[data-item-id]")) {
+    const item = actor.items.get(li.dataset.itemId);
+    const type = lightTypeOf(item);
+    // A light source is type `item` and has no `equipped` field — the control
+    // shows on the item itself; "held" is the formation light record, below.
+    if (!type || li.querySelector(".acks-equipment-light")) continue;
+    const controls = li.querySelector(".list-header__controls") ?? li.querySelector(".item-row") ?? li;
+    const lit = mine.find((l) => l.type === type && l.lit);
+    const held = lit || mine.find((l) => l.type === type && l.shielded);
+    const add = (icon, key, run) => {
+      const a = el("a", "item-control acks-equipment-light");
+      a.innerHTML = `<i class="fas ${icon}"></i>`;
+      a.dataset.tooltip = game.i18n.localize(key);
+      a.addEventListener("click", (ev) => {
+        ev.preventDefault();
+        ev.stopPropagation();
+        Promise.resolve(run()).catch((err) => console.error(`${MODULE_ID} | light control failed`, err));
+      });
+      controls.insertBefore(a, controls.firstChild);
+    };
+    if (held) {
+      // Douse (and re-light) the held source; shutter a lantern.
+      add("fa-fire", "ACKS-EQUIPMENT.light.douse", () => fm.toggleLight(fm.getFormationForActor(actor.id), held.id));
+      if (type === "lantern") add("fa-lightbulb", "ACKS-EQUIPMENT.light.shutter", () => fm.toggleShield(fm.getFormationForActor(actor.id), held.id));
+    } else {
+      add("fa-fire-flame-curved", "ACKS-EQUIPMENT.light.light", () => fm.addLight(fm.getFormationForActor(actor.id), type, actor.id));
+    }
+  }
+}
+
 /**
  * Put a grip control on each versatile weapon's row. A versatile weapon can be
  * wielded one- or two-handed; the control shows the resolved grip and cycles
@@ -379,6 +433,10 @@ function onRenderCharacterSheet(app, element) {
     // listen on three of them so the system's class name can change freely.
     if (!tab || tab.querySelector(".acks-equipment-wear")) return;
     regroup(app.actor, tab);
+    // Light controls attach to a light source WHEREVER it renders — a torch is
+    // type `item` with no `equipped` field, so it stays in core's carried list,
+    // not a worn bucket. Scan the whole tab (per-row dedupe inside).
+    injectLightControls(tab, app.actor);
   } catch (err) {
     console.error(`${MODULE_ID} | inventory regrouping failed; core's layout stands`, err);
   }

@@ -156,6 +156,11 @@
       "2h": "Two-handed",
       "cycle": "Grip: {grip} — click to cycle one-handed / two-handed / auto",
       "blocked": "Wants a two-handed grip but both hands are not free — free a hand or drop the shield"
+    },
+    "light": {
+      "light": "Light this source (uses a free hand)",
+      "douse": "Douse / re-light",
+      "shutter": "Open / close the lantern shutter"
     }
   },
   "ACKS-EQUIPMENT.container.expand": "Show contents",
