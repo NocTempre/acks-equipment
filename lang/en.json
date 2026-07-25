@@ -149,6 +149,13 @@
       "threwSingle": "{item} thrown — recover it to reclaim its weight.",
       "recovered": "Recovered: {items}.",
       "recoveredNone": "No thrown weapons to recover."
+    },
+    "grip": {
+      "auto": "Auto",
+      "1h": "One-handed",
+      "2h": "Two-handed",
+      "cycle": "Grip: {grip} — click to cycle one-handed / two-handed / auto",
+      "blocked": "Wants a two-handed grip but both hands are not free — free a hand or drop the shield"
     }
   },
   "ACKS-EQUIPMENT.container.expand": "Show contents",

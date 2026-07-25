@@ -89,6 +89,7 @@ export const ITEM_FLAGS = Object.freeze({
   BOWQUIVER: "bowquiver", // bowquiver: assembly counts as 2 items when loaded
   NAMED: "named", // {trueName, givenName, ladder[], unlocked, revealed, guesses{}}
   WORN_HAND: "hand", // set by paper-doll normalization: "main" | "off" | "mainOff"
+  GRIP: "grip", // player's chosen grip for a versatile weapon: "auto" | "1h" | "2h"
 });
 
 /** Actor-level flags this module owns. */

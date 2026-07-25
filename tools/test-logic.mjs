@@ -1113,4 +1113,39 @@ await consumeForAttack(withItems([ammoBow, q2]), ammoBow, classifyWeapon(ammoBow
 check("ammo tracking off → nothing consumed", q2._sys.quantity.value === 20);
 SETTINGS_STATE.ammoTracking = true;
 
+/* ---------------------------------------------------------------------- */
+/*  Grip switching (1H / 2H, hand-aware)                                     */
+/* ---------------------------------------------------------------------- */
+
+const { weaponGrip } = await import(new URL("loadout.mjs", S));
+
+// A versatile weapon (medium melee, Sword) offers a grip choice.
+const gripSword = () => weapon("Sword", { melee: true, id: "gs" });
+const autoLoad = getLoadout(withItems([gripSword()]));
+check("versatile weapon exposes canTwoHand", autoLoad.weapons[0].canTwoHand === true);
+check("auto grip → two-handed when hands free", autoLoad.weapons[0].wieldTwoHanded && autoLoad.weapons[0].grip === "auto");
+
+// Explicit 1H keeps it one-handed even with hands free.
+const oneH = getLoadout(withItems([{ ...gripSword(), getFlag: (_m, k) => (k === "grip" ? "1h" : undefined) }]));
+check("grip 1h → one-handed", oneH.weapons[0].wieldTwoHanded === false && oneH.handsUsed === 1);
+
+// Explicit 2H two-hands it.
+const twoH = getLoadout(withItems([{ ...gripSword(), getFlag: (_m, k) => (k === "grip" ? "2h" : undefined) }]));
+check("grip 2h → two-handed, 2 hands", twoH.weapons[0].wieldTwoHanded === true && twoH.handsUsed === 2);
+
+// 2H requested but a shield occupies the off hand → BLOCKED, stays one-handed.
+const swordFlag2h = { ...gripSword(), getFlag: (_m, k) => (k === "grip" ? "2h" : undefined) };
+const withShield = withItems([swordFlag2h, armor("Shield", "shield", { id: "gsh" })]);
+const blockedLo = getLoadout(withShield);
+const swEntry = blockedLo.weapons.find((w) => w.item.id === "gs");
+check("grip 2h blocked when a shield holds the off hand", swEntry.gripBlocked === true && swEntry.wieldTwoHanded === false);
+
+// A forced-two-handed weapon (great sword / two-handed sword) has no grip choice.
+const gsword = getLoadout(withItems([weapon("Two-Handed Sword", { melee: true, id: "ths" })]));
+check("forced-2H weapon is two-handed with no grip choice", gsword.weapons[0].wieldTwoHanded === true && gsword.weapons[0].canTwoHand === false);
+
+// weaponGrip reads/normalises the flag.
+check("weaponGrip defaults to auto", weaponGrip({ getFlag: () => undefined }) === "auto");
+check("weaponGrip reads 2h", weaponGrip({ getFlag: (_m, k) => (k === "grip" ? "2h" : undefined) }) === "2h");
+
 console.log(`test-logic: all ${pass} checks passed`);

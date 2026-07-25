@@ -21,7 +21,7 @@
  */
 import { MODULE_ID } from "./constants.mjs";
 import { WEAR_ICONS } from "./config.mjs";
-import { getLoadout } from "./loadout.mjs";
+import { getLoadout, cycleGrip } from "./loadout.mjs";
 import { wearBuckets, wearLabel } from "./wear.mjs";
 import {
   containerReport,
@@ -108,10 +108,42 @@ function buildWornSection(actor, tab, loadout) {
     const claimed = claimRows(tab, items, list, key);
     if (!claimed) continue;
     moved += claimed;
+    injectGripControls(list, loadout);
     bucket.append(bucketHeader(key, wearLabel(key)), list);
     section.append(bucket);
   }
   return moved ? section : null;
+}
+
+/**
+ * Put a grip control on each versatile weapon's row. A versatile weapon can be
+ * wielded one- or two-handed; the control shows the resolved grip and cycles
+ * the player's choice (Auto → 1H → 2H). Two-handing needs both hands free — a
+ * "2H" choice that cannot be honoured (a shield or second weapon is in the way)
+ * shows as BLOCKED, which is the visible "check against free hands".
+ */
+function injectGripControls(list, loadout) {
+  for (const li of list.querySelectorAll("li.item[data-item-id]")) {
+    const entry = loadout.weapons.find((w) => w.item.id === li.dataset.itemId);
+    if (!entry?.canTwoHand || li.querySelector(".acks-equipment-grip")) continue;
+    const state = entry.gripBlocked ? "blocked" : entry.wieldTwoHanded ? "twoHand" : "oneHand";
+    const label = { blocked: "2H ✗", twoHand: "2H", oneHand: "1H" }[state];
+    const badge = entry.grip === "auto" ? " · auto" : "";
+    const a = el("a", `item-control acks-equipment-grip acks-equipment-grip--${state}`);
+    a.innerHTML = `<i class="fas fa-hands"></i> ${label}${badge}`;
+    a.dataset.tooltip = game.i18n.format(
+      entry.gripBlocked ? "ACKS-EQUIPMENT.grip.blocked" : "ACKS-EQUIPMENT.grip.cycle",
+      { grip: game.i18n.localize(`ACKS-EQUIPMENT.grip.${entry.grip}`) },
+    );
+    a.addEventListener("click", (ev) => {
+      ev.preventDefault();
+      ev.stopPropagation();
+      // The flag change fires updateItem → the sheet re-renders → fresh buckets.
+      cycleGrip(entry.item).catch((err) => console.error(`${MODULE_ID} | grip cycle failed`, err));
+    });
+    const controls = li.querySelector(".list-header__controls") ?? li.querySelector(".item-row") ?? li;
+    controls.insertBefore(a, controls.firstChild);
+  }
 }
 
 /** A small icon control in a container's header. */

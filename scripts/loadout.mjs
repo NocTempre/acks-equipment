@@ -7,7 +7,7 @@
  */
 import { MODULE_ID, ITEM_FLAGS, ACTOR_FLAGS, SETTINGS } from "./constants.mjs";
 import { STYLE } from "./config.mjs";
-import { classifyWeapon, handCost, inferStyle, canOneHand } from "./profiles.mjs";
+import { classifyWeapon, handCost, inferStyle, canOneHand, isTwoHandedOnly } from "./profiles.mjs";
 import { collectStringFlags, sumEffectModifiers } from "./effects.mjs";
 import { EFFECT_DOMAINS } from "./constants.mjs";
 import { weaponProficiency, isWeaponProficient, armorMax, isArmorProficient, thiefSkillsGated, swashbucklingAC, enforcementActive } from "./proficiency.mjs";
@@ -25,6 +25,20 @@ export const VIOLATION = Object.freeze({
   NON_PROFICIENT_USE: "nonProficientUse", // the full RR p. 106 package: attacks as 0th-level fighter, no attribute bonus to attack/AC, no class powers, no XP
   THIEF_SKILL_GATED: "thiefSkillGated", // Backstab/Hide/Pickpocket/Sneak blocked by armour/shield (advisory)
 });
+
+/** The player's chosen grip for a weapon: "auto" (default), "1h", or "2h". */
+export function weaponGrip(item) {
+  const g = item?.getFlag?.(MODULE_ID, ITEM_FLAGS.GRIP);
+  return g === "1h" || g === "2h" ? g : "auto";
+}
+
+/** Cycle a weapon's grip: auto → 1h → 2h → auto. Returns the new grip. */
+export async function cycleGrip(item) {
+  const next = { auto: "1h", "1h": "2h", "2h": "auto" }[weaponGrip(item)];
+  if (next === "auto") await item.unsetFlag?.(MODULE_ID, ITEM_FLAGS.GRIP);
+  else await item.setFlag?.(MODULE_ID, ITEM_FLAGS.GRIP, next);
+  return next;
+}
 
 /** Base hand budget for an actor (2 + Four-Arms/anatomy effects + setting). */
 export function handBudget(actor) {
@@ -96,6 +110,12 @@ export function getLoadout(actor, opts = {}) {
       wornHand,
       handsMin: handCost(profile, { twoHanded: false }),
       wieldTwoHanded: false,
+      // Versatile: usable one-handed AND costing two hands in a two-handed grip
+      // (a medium melee weapon). Only these offer a grip CHOICE.
+      canTwoHand: profile.melee && canOneHand(profile) && handCost(profile, { twoHanded: true }) === 2,
+      grip: weaponGrip(item), // "auto" | "1h" | "2h"
+      gripBlocked: false, // wants 2H but the hands are not free
+      thrownAway: !!item.getFlag?.(MODULE_ID, ITEM_FLAGS.THROWN_STATE),
       melee: profile.melee,
       missile: profile.missile,
       proficient: isWeaponProficient(actor, profile, wprof),
@@ -107,15 +127,37 @@ export function getLoadout(actor, opts = {}) {
   const handShields = shields.filter(occupiesHand);
   let handsUsed = weapons.reduce((n, w) => n + w.handsMin, 0) + handShields.length;
 
-  // A lone medium/large melee weapon with spare hands and no shield in hand is
-  // wielded two-handed (RAW 1d8/1d10). Mark it so damage + style reflect that.
-  if (weapons.length === 1 && !handShields.length && weapons[0].melee) {
+  // GRIP resolution. A two-handed grip needs BOTH hands, so only a lone melee
+  // weapon with no in-hand shield can take it (RAW 1d8/1d10). The player's grip
+  // choice governs: "1h" forces one hand; "2h" is honoured only when the hands
+  // are actually free (else it is BLOCKED and surfaced); "auto" takes the two-
+  // handed grip when hands are free (best damage), one-handed otherwise.
+  const loneMelee = weapons.length === 1 && !handShields.length && weapons[0].melee;
+  if (loneMelee) {
     const w = weapons[0];
-    const twoH = handCost(w.profile, { twoHanded: true });
-    if (twoH === 2 && budget >= 2) {
-      w.wieldTwoHanded = true;
-      handsUsed = 2;
+    const handsFree = budget >= 2;
+    if (isTwoHandedOnly(w.profile)) {
+      // No grip CHOICE — a great sword / staff-sling is always two-handed.
+      if (handsFree) { w.wieldTwoHanded = true; handsUsed = 2; }
+    } else if (w.canTwoHand) {
+      // Versatile — the player's grip choice governs.
+      if (w.grip === "1h") {
+        w.wieldTwoHanded = false;
+      } else if (w.grip === "2h") {
+        if (handsFree) { w.wieldTwoHanded = true; handsUsed = 2; }
+      } else if (handsFree) {
+        w.wieldTwoHanded = true; // auto
+        handsUsed = 2;
+      }
     }
+  }
+
+  // The "check against free hands": any versatile weapon whose player asked for
+  // a two-handed grip but did NOT get it — a shield or second weapon occupies
+  // the off hand, or it is not the lone weapon — is BLOCKED, surfaced so the UI
+  // can show why (rather than silently ignoring the request).
+  for (const w of weapons) {
+    if (w.canTwoHand && w.grip === "2h" && !w.wieldTwoHanded) w.gripBlocked = true;
   }
 
   const hasShield = handShields.length > 0; // only a shield in hand forms Weapon & Shield

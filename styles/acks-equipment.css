@@ -276,3 +276,20 @@
   outline: 2px dashed var(--color-shadow-primary, #ff6400);
   outline-offset: -2px;
 }
+
+/* --- Grip control (wear buckets) -------------------------------------- */
+
+.acks-equipment-grip {
+  font-size: var(--font-size-11, 11px);
+  font-weight: bold;
+  white-space: nowrap;
+  padding: 0 0.25rem;
+}
+
+.acks-equipment-grip--twoHand {
+  color: var(--color-level-success, #18520b);
+}
+
+.acks-equipment-grip--blocked {
+  color: var(--color-level-error, #b60205);
+}
