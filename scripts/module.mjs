@@ -62,6 +62,16 @@ Hooks.once("ready", async () => {
     console.error(`${MODULE_ID} | sheet integration failed`, err);
   }
 
+  // A held light occupies a hand: when acks-formation lights/douses/burns out a
+  // source, recompute that bearer's loadout so hands-used reflects it. The read
+  // half is loadout.heldLightHands; this keeps it live. Optional — the hook
+  // simply never fires without acks-formation.
+  Hooks.on("acksFormation.lightChanged", (actor) => {
+    if (actor?.type === "character" && actor.isOwner) {
+      refreshLoadout(actor).catch((err) => console.error(`${MODULE_ID} | light-change loadout sync failed`, err));
+    }
+  });
+
   // Rebuild loadout effects for owned characters on load (repairs after config
   // changes, migrations, or a session where enforcement was off).
   const owned = game.actors.filter((a) => a.type === "character" && a.isOwner);

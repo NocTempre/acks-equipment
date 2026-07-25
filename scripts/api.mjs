@@ -6,7 +6,7 @@
  * reads gear), and lets macros drive equip/annotate/purchase.
  */
 import { MODULE_ID, HOOKS, EFFECT_DOMAINS, ITEM_FLAGS } from "./constants.mjs";
-import { getLoadout, VIOLATION, trainedStyles, specializedStyles, handBudget } from "./loadout.mjs";
+import { getLoadout, VIOLATION, trainedStyles, specializedStyles, handBudget, heldLightHands } from "./loadout.mjs";
 import { classifyWeapon, handCost, focusGroup, weaponKey } from "./profiles.mjs";
 import { weaponProficiency, isWeaponProficient, armorMax, isArmorProficient, thiefSkillsGated, isArmorGatedSkill } from "./proficiency.mjs";
 import { refreshLoadout } from "./enforce.mjs";
@@ -74,6 +74,10 @@ export function buildApi() {
     // Model
     getLoadout,
     handBudget,
+    // Free hands right now — read by acks-formation before it lights a source
+    // (a light needs a hand to hold). The write half of the two-way hook.
+    freeHands: (actor) => getLoadout(actor).handsFree,
+    heldLightHands,
     trainedStyles,
     specializedStyles,
     VIOLATION,

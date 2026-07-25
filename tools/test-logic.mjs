@@ -1148,4 +1148,26 @@ check("forced-2H weapon is two-handed with no grip choice", gsword.weapons[0].wi
 check("weaponGrip defaults to auto", weaponGrip({ getFlag: () => undefined }) === "auto");
 check("weaponGrip reads 2h", weaponGrip({ getFlag: (_m, k) => (k === "grip" ? "2h" : undefined) }) === "2h");
 
+/* ---------------------------------------------------------------------- */
+/*  Held-light hand cost (acks-formation two-way hook)                       */
+/* ---------------------------------------------------------------------- */
+
+// No formation module → held lights are 0, loadout unaffected.
+delete globalThis.acksFormation;
+const noLight = getLoadout(withItems([weapon("Sword", { melee: true, id: "hl1" })]));
+check("no formation → heldLights 0", noLight.heldLights === 0);
+
+// A lit light the actor bears occupies a hand: a 2-hand actor holding a torch
+// and a sword uses both hands, and a second weapon would overflow.
+globalThis.acksFormation = { heldLightCount: (id) => (id === "a1" ? 1 : 0) };
+const oneLight = getLoadout(withItems([weapon("Sword", { melee: true, id: "hl2" })]));
+check("held light counts as a used hand", oneLight.heldLights === 1 && oneLight.handsUsed === 2);
+check("held light leaves no free hand for a 2-hand actor", oneLight.handsFree === 0);
+// The sword no longer auto-two-hands: the torch holds the other hand.
+check("a held light blocks the two-handed grip", oneLight.weapons[0].wieldTwoHanded === false);
+// Torch + two weapons → hand overflow.
+const overHand = getLoadout(withItems([weapon("Sword", { melee: true, id: "hl3" }), weapon("Dagger", { melee: true, id: "hl4" })]));
+check("torch + two weapons overflows hands", overHand.violations.some((v) => v.type === "handOverflow"));
+delete globalThis.acksFormation;
+
 console.log(`test-logic: all ${pass} checks passed`);

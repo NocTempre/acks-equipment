@@ -40,6 +40,12 @@ export async function cycleGrip(item) {
   return next;
 }
 
+/** Hands occupied by lit light sources this actor bears (acks-formation, optional). */
+export function heldLightHands(actor) {
+  const n = globalThis.acksFormation?.heldLightCount?.(actor?.id);
+  return Number.isFinite(n) ? n : 0;
+}
+
 /** Base hand budget for an actor (2 + Four-Arms/anatomy effects + setting). */
 export function handBudget(actor) {
   const base = Number(game.settings.get(MODULE_ID, SETTINGS.DEFAULT_HAND_BUDGET)) || 2;
@@ -125,7 +131,12 @@ export function getLoadout(actor, opts = {}) {
   // Only a shield carried IN HAND costs a hand; a strapped one (JJ variant
   // overlay) rides the back or front and leaves both hands free.
   const handShields = shields.filter(occupiesHand);
-  let handsUsed = weapons.reduce((n, w) => n + w.handsMin, 0) + handShields.length;
+  // A lit light source held by this actor occupies a hand too (acks-formation,
+  // optional — degrade-gracefully to 0 when it is absent). This is the read
+  // half of the two-way hook: formation owns the light state; we count it as a
+  // used hand so hands-available matches who is holding a light.
+  const heldLights = heldLightHands(actor);
+  let handsUsed = weapons.reduce((n, w) => n + w.handsMin, 0) + handShields.length + heldLights;
 
   // GRIP resolution. A two-handed grip needs BOTH hands, so only a lone melee
   // weapon with no in-hand shield can take it (RAW 1d8/1d10). The player's grip
@@ -135,19 +146,21 @@ export function getLoadout(actor, opts = {}) {
   const loneMelee = weapons.length === 1 && !handShields.length && weapons[0].melee;
   if (loneMelee) {
     const w = weapons[0];
-    const handsFree = budget >= 2;
     if (isTwoHandedOnly(w.profile)) {
-      // No grip CHOICE — a great sword / staff-sling is always two-handed.
-      if (handsFree) { w.wieldTwoHanded = true; handsUsed = 2; }
+      // No grip CHOICE — a great sword / staff-sling is inherently two-handed;
+      // its handsMin is already 2. Any hand overflow (e.g. also holding a torch)
+      // surfaces as a violation below, but the grip itself is fixed.
+      w.wieldTwoHanded = true;
     } else if (w.canTwoHand) {
-      // Versatile — the player's grip choice governs.
+      // Versatile: the two-handed grip costs ONE hand beyond the one-handed
+      // hold, so it needs a spare hand NOW — after weapons, shields, AND any
+      // held light are counted. This is what makes a held torch block 2H.
+      const twoHandDelta = 2 - w.handsMin; // 1 for a medium weapon
+      const spare = budget - handsUsed;
       if (w.grip === "1h") {
         w.wieldTwoHanded = false;
-      } else if (w.grip === "2h") {
-        if (handsFree) { w.wieldTwoHanded = true; handsUsed = 2; }
-      } else if (handsFree) {
-        w.wieldTwoHanded = true; // auto
-        handsUsed = 2;
+      } else if (w.grip === "2h" || w.grip === "auto") {
+        if (spare >= twoHandDelta) { w.wieldTwoHanded = true; handsUsed += twoHandDelta; }
       }
     }
   }
@@ -242,6 +255,7 @@ export function getLoadout(actor, opts = {}) {
     handBudget: budget,
     handsUsed,
     handsFree: Math.max(0, budget - handsUsed),
+    heldLights, // hands occupied by lit light sources (acks-formation)
     weapons,
     armor,
     armorProficient,
