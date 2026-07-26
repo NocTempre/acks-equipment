@@ -3,6 +3,32 @@
 Releases up to and including 0.15.1 predate this file; see the git history
 and GitHub releases for earlier changes.
 
+## 0.28.0
+
+- **Item properties now live on the item's OWN sheet.** A new **ACKS Properties**
+  panel on every weapon/armour/item sheet gathers masterwork, condition
+  (scavenged), material, shield variant, helmet type, spell book, and the GM
+  apparent-identity mask in one place — so opening an item shows its toggles,
+  instead of them only appearing on the character-sheet inventory rows. The
+  inventory rows keep their "how you're using it" controls (grip, draw/sheathe,
+  light, strap).
+- **Material control.** Set any item's material (for the item-loss table) from a
+  picker; "Auto" falls back to the name/type guess. It had no UI before.
+- **Enclosing helm (RR p140).** New overlay: a heavy (enclosing) helmet imposes
+  −1 to surprise (folded into the loadout effect) and −4 to Listening (surfaced);
+  +2 on Mortal Wounds is core's own, applied to helmets named with "heavy" and
+  "helmet". A light/heavy toggle marks any helmet enclosing.
+- **Spell books (RR p145/p390).** Turn any item into a spell book: 100 pages, a
+  spell fills one page per level, ½-stone weight; value = 20gp + 1,000gp × each
+  scribed spell's level. A free-text manager edits the recorded spells and the
+  readout shows pages used and worth. The spell list rides the item, so a looted
+  book carries its formulae without appearing in anyone's repertoire.
+- **Apparent value / disguise (GM).** Give a magic item a mundane apparent
+  identity — players see the fake name/value/stats with no indicator, while the
+  real weight stays for encumbrance and the truth waits under a flag until you
+  Reveal. Sheet-level secrecy (not encryption): for genuinely secret loot, keep
+  the real item on a GM actor until it changes hands.
+
 ## 0.27.0
 
 - **Apply RAW qualities to ANY valid item — no pre-made variants needed.** Audit

@@ -255,6 +255,63 @@ export async function scavengeItem(item, { roll } = {}) {
 }
 
 /* -------------------------------------------------------------------------- */
+/*  Apparent value / disguise (GM tool): show mundane, keep the truth hidden    */
+/* -------------------------------------------------------------------------- */
+
+/**
+ * Give an item an APPARENT identity: overwrite what the sheet shows (name, value,
+ * damage/AC, description, icon) with mundane values, keeping the TRUE identity in
+ * a flag so the GM can Reveal it later. The real WEIGHT is untouched, so the
+ * player can still carry it for encumbrance. Reversible; capturing the truth once
+ * means re-disguising never loses it.
+ *
+ * NOT a security boundary — the flag rides on the item, which Foundry replicates
+ * to the owning player's client (the same caveat containers.mjs documents for
+ * locked chests). It hides the truth from the SHEET, with no player-visible
+ * indicator; for genuinely secret loot, keep the real item on a GM actor until
+ * it is handed over. GM-only in the UI.
+ * @param {Item} item
+ * @param {{name?,cost?,damage?,ac?,description?,img?}} apparent
+ */
+export async function disguiseItem(item, apparent = {}) {
+  if (!item) return;
+  const existing = item.getFlag?.(MODULE_ID, ITEM_FLAGS.DISGUISE);
+  const truth = existing?.true ?? {
+    name: item.name,
+    img: item.img,
+    cost: Number(item.system?.cost ?? 0),
+    damage: item.system?.damage ?? "",
+    ac: Number(item.system?.aac?.value ?? 0),
+    description: item.system?.description ?? "",
+  };
+  const update = { name: apparent.name ?? truth.name };
+  if (apparent.img) update.img = apparent.img;
+  if (apparent.cost != null && apparent.cost !== "") update["system.cost"] = Number(apparent.cost);
+  if (item.type === "weapon" && apparent.damage != null && apparent.damage !== "") update["system.damage"] = apparent.damage;
+  if (item.type === "armor" && apparent.ac != null && apparent.ac !== "") update["system.aac.value"] = Number(apparent.ac);
+  if (apparent.description != null) update["system.description"] = apparent.description;
+  await item.update?.(update);
+  await item.setFlag?.(MODULE_ID, ITEM_FLAGS.DISGUISE, { true: truth, apparent });
+}
+
+/** Drop the disguise, restoring the item's true identity. */
+export async function revealItem(item) {
+  const d = item?.getFlag?.(MODULE_ID, ITEM_FLAGS.DISGUISE);
+  if (!d?.true) return;
+  const t = d.true;
+  const update = { name: t.name, img: t.img, "system.cost": t.cost, "system.description": t.description };
+  if (item.type === "weapon") update["system.damage"] = t.damage;
+  if (item.type === "armor") update["system.aac.value"] = t.ac;
+  await item.update?.(update);
+  await item.unsetFlag?.(MODULE_ID, ITEM_FLAGS.DISGUISE);
+}
+
+/** Is this item wearing an apparent identity? (GM-facing.) */
+export function isDisguised(item) {
+  return !!item?.getFlag?.(MODULE_ID, ITEM_FLAGS.DISGUISE);
+}
+
+/* -------------------------------------------------------------------------- */
 /*  Shield variant (JJ pp407-408): make any shield a buckler/kite/etc.        */
 /* -------------------------------------------------------------------------- */
 

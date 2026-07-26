@@ -10,13 +10,15 @@ import { getLoadout, VIOLATION, trainedStyles, specializedStyles, handBudget, he
 import { classifyWeapon, handCost, focusGroup, weaponKey, equipmentClass } from "./profiles.mjs";
 import { weaponProficiency, isWeaponProficient, armorMax, isArmorProficient, thiefSkillsGated, isArmorGatedSkill } from "./proficiency.mjs";
 import { refreshLoadout } from "./enforce.mjs";
-import { planItemLoss, stonesAtRisk, isVulnerable, materialOf } from "./overlays/item-loss.mjs";
+import { planItemLoss, stonesAtRisk, isVulnerable, materialOf, setMaterial, MATERIALS } from "./overlays/item-loss.mjs";
 import { maneuverMods, MANEUVERS } from "./overlays/maneuvers.mjs";
 import * as named from "./overlays/named.mjs";
 import { clearFromPaperDoll } from "./paperdoll.mjs";
 import { consumeForAttack, recoverThrown, isThrownAway, consumeItem } from "./ammo.mjs";
-import { prepareTorch, rollUnarmed, unarmedStrikeData, setMasterwork, masterworkTiersFor, drawItem, sheatheItem, scavengeItem, clearScavenged, setShieldVariant, SHIELD_VARIANT_KEYS } from "./actions.mjs";
+import { prepareTorch, rollUnarmed, unarmedStrikeData, setMasterwork, masterworkTiersFor, drawItem, sheatheItem, scavengeItem, clearScavenged, setShieldVariant, SHIELD_VARIANT_KEYS, disguiseItem, revealItem, isDisguised } from "./actions.mjs";
 import { cycleStrap, strapOf, canStrap } from "./overlays/shield-variants.mjs";
+import { helmetType, isEnclosingHelm, enclosingHelmActive, HELM_MODIFIERS } from "./overlays/enclosing-helm.mjs";
+import { isSpellbook, makeSpellbook, spellbookValue, pagesUsed, pagesCapacity, spellbookSpells, setSpellbookSpells } from "./spellbook.mjs";
 import {
   containerReport,
   contentsOf,
@@ -134,6 +136,23 @@ export function buildApi() {
     cycleStrap,
     strapOf,
     canStrap,
+    // Enclosing helm (RR p140), material, spellbook, and the GM apparent-value mask
+    helmetType,
+    isEnclosingHelm,
+    enclosingHelmActive,
+    HELM_MODIFIERS,
+    setMaterial,
+    MATERIALS,
+    isSpellbook,
+    makeSpellbook,
+    spellbookValue,
+    pagesUsed,
+    pagesCapacity,
+    spellbookSpells,
+    setSpellbookSpells,
+    disguiseItem,
+    revealItem,
+    isDisguised,
     // Containers
     containerReport,
     contentsOf,

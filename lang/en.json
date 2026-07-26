@@ -201,6 +201,46 @@
       "cycle": "Shield variant (JJ pp. 407–408) — click to choose buckler, kite, phalanx, and so on.",
       "title": "Shield variant — {name}",
       "prompt": "Choose which shield this is. Its AC benefit, encumbrance, and carry options follow from the variant."
+    },
+    "props": {
+      "section": "ACKS Properties",
+      "masterwork": "Masterwork",
+      "condition": "Condition",
+      "pristine": "Pristine",
+      "material": "Material",
+      "materialAuto": "Auto ({guess})",
+      "variant": "Shield variant",
+      "helm": "Helmet",
+      "spellbook": "Spell book",
+      "disguise": "Apparent identity (GM)"
+    },
+    "helm": {
+      "light": "Light",
+      "heavy": "Heavy (enclosing)",
+      "cycle": "Helmet type — click to make it a heavy (enclosing) helm.",
+      "heavyHint": "Enclosing helm (RR p. 140): −1 surprise, −4 Listening; +2 Mortal Wounds applies when the item is named with \"heavy\" and \"helmet\" (core). Click to make it light."
+    },
+    "spellbook": {
+      "make": "Make spell book",
+      "makeHint": "Turn this into a spell book (RR p. 145): 100 pages, ½ stone; it records spell formulae.",
+      "manageHint": "Edit the spells recorded in this book. Value = 20gp + 1,000gp × each spell's level (RR p. 390).",
+      "title": "Spell book — {name}",
+      "prompt": "One spell per line, level as a trailing number: “Fireball, 3”. Each spell fills one page per level; 100 pages total.",
+      "save": "Save spells",
+      "unmake": "No longer a spell book",
+      "over": "{name}: {used}/{cap} pages — over capacity."
+    },
+    "disguise": {
+      "hint": "GM: give this item an apparent (mundane) identity — players see the disguise, not the truth.",
+      "activeHint": "Disguised (true: {name}). Click to edit or reveal.",
+      "title": "Apparent identity — {name}",
+      "prompt": "What players should see. The true stats stay hidden until you Reveal; the real weight is unchanged so it can still be carried. Sheet-level only — not encrypted.",
+      "apply": "Disguise",
+      "reveal": "Reveal true item",
+      "shown": "Disguised (true: {name})",
+      "cost": "Apparent value (gp)",
+      "damage": "Apparent damage",
+      "ac": "Apparent AC"
     }
   },
   "ACKS-EQUIPMENT.container.expand": "Show contents",

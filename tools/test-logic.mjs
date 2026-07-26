@@ -68,6 +68,10 @@ const { buildProficiencies, buildSamples, buildActors } = await import(new URL("
 const { computeAttackMods } = await import(new URL("roll-wrap.mjs", S));
 const { readiedWeaponData, prepareTorch, unarmedStrikeData, masterworkTiersFor, addToDamage, setMasterwork, scavengeItem, clearScavenged, rollScavengedD20s, setShieldVariant } = await import(new URL("actions.mjs", S));
 const { cycleStrap, strapOf } = await import(new URL("overlays/shield-variants.mjs", S));
+const { disguiseItem, revealItem, isDisguised } = await import(new URL("actions.mjs", S));
+const { helmetType, isEnclosingHelm } = await import(new URL("overlays/enclosing-helm.mjs", S));
+const { makeSpellbook, isSpellbook, pagesUsed, spellbookValue, parseSpellList, setSpellbookSpells, overCapacity: bookOver } = await import(new URL("spellbook.mjs", S));
+const { setMaterial, MATERIALS } = await import(new URL("overlays/item-loss.mjs", S));
 
 const weapon = (name, over = {}) => ({
   id: over.id ?? name.replace(/\W/g, ""),
@@ -775,10 +779,10 @@ check("registerSheet() runs without throwing", true);
 
 // Overlay toggles with NO implementation behind them must not appear in the
 // settings UI — a switch that silently does nothing is worse than no switch.
-for (const dead of ["overlayMounted", "overlayBeastman", "overlayEnclosingHelm"]) {
+for (const dead of ["overlayMounted", "overlayBeastman"]) {
   check(`${dead} is not registered (no implementation exists)`, !registered.includes(dead));
 }
-for (const live of ["overlayShieldVariants", "overlayManeuvers", "overlayItemLoss", "overlayNamed", "overlayScavenged"]) {
+for (const live of ["overlayShieldVariants", "overlayManeuvers", "overlayItemLoss", "overlayNamed", "overlayScavenged", "overlayEnclosingHelm"]) {
   check(`${live} is registered and gates real code`, registered.includes(live));
 }
 
@@ -1303,7 +1307,8 @@ check("masterworkTiersFor lists weapon vs armor tiers", masterworkTiersFor("weap
 const mockDoc = (type, sys = {}) => ({
   type,
   name: sys.name ?? "Sword",
-  system: { bonus: sys.bonus ?? 0, damage: sys.damage, aac: { value: sys.aac ?? 0 }, weight6: sys.weight6 ?? 0, tags: [], type: sys.armorType },
+  img: sys.img ?? "icons/svg/item-bag.svg",
+  system: { bonus: sys.bonus ?? 0, damage: sys.damage, aac: { value: sys.aac ?? 0 }, weight6: sys.weight6 ?? 0, cost: sys.cost ?? 0, description: sys.description ?? "", tags: [], type: sys.armorType },
   _flags: {},
   getFlag(_m, k) { return this._flags[k]; },
   async setFlag(_m, k, v) { this._flags[k] = v; },
@@ -1315,6 +1320,7 @@ const mockDoc = (type, sys = {}) => ({
         this._flags[path.slice("flags.acks-equipment.".length)] = v;
         continue;
       }
+      if (!path.includes(".")) { this[path] = v; continue; } // top-level doc field (name, img)
       const parts = path.replace(/^system\./, "").split(".");
       let o = this.system;
       while (parts.length > 1) o = o[parts.shift()] ??= {};
@@ -1386,5 +1392,52 @@ await setShieldVariant(shieldVar, "standard");
 check("setShieldVariant standard clears the flag", shieldVar._flags.shieldVariant === undefined);
 
 SETTINGS_STATE.overlayShieldVariants = false;
+
+/* ---------------------------------------------------------------------- */
+/*  Enclosing helm (RR p140) — light/heavy detection                       */
+/* ---------------------------------------------------------------------- */
+
+check("helmetType: a 'Heavy Helmet' reads heavy (enclosing)", helmetType(mockDoc("armor", { name: "Heavy Helmet" })) === "heavy");
+check("helmetType: a 'Light Helmet' reads light", helmetType(mockDoc("armor", { name: "Light Helmet" })) === "light");
+check("helmetType: a 'Great Helm' reads heavy by name", helmetType(mockDoc("armor", { name: "Great Helm" })) === "heavy");
+check("helmetType: an explicit flag wins over the name", (() => { const h = mockDoc("armor", { name: "Great Helm" }); h._flags.helmet = "light"; return helmetType(h) === "light"; })());
+check("helmetType: a non-helmet is null", helmetType(mockDoc("armor", { name: "Plate" })) === null && helmetType(mockDoc("weapon", { name: "Sword" })) === null);
+check("isEnclosingHelm true only for a heavy helm", isEnclosingHelm(mockDoc("armor", { name: "Heavy Helmet" })) && !isEnclosingHelm(mockDoc("armor", { name: "Light Helmet" })));
+
+/* ---------------------------------------------------------------------- */
+/*  Spellbook (RR p145 pages, p390 value)                                  */
+/* ---------------------------------------------------------------------- */
+
+check("parseSpellList reads name + trailing level in three shapes", (() => {
+  const p = parseSpellList("Fireball, 3\nMagic Missile 1\nShield (1)");
+  return p.length === 3 && p[0].name === "Fireball" && p[0].lvl === 3 && p[1].name === "Magic Missile" && p[1].lvl === 1 && p[2].name === "Shield" && p[2].lvl === 1;
+})());
+const book = mockDoc("item", { name: "Grimoire", weight6: 0, cost: 0 });
+await makeSpellbook(book);
+check("makeSpellbook flags it + sets ½ stone + 20gp blank", isSpellbook(book) && book.system.weight6 === 3 && book.system.cost === 20);
+await setSpellbookSpells(book, [{ name: "A", lvl: 1 }, { name: "B", lvl: 3 }]);
+check("spellbook pages used = sum of levels (1+3)", pagesUsed(book) === 4);
+check("spellbook value = 20 + 1000×(1+3)", spellbookValue(book) === 4020);
+check("spellbook under 100 pages is not over capacity", !bookOver(book));
+await setSpellbookSpells(book, Array.from({ length: 20 }, (_, i) => ({ name: `S${i}`, lvl: 6 })));
+check("spellbook over 100 pages flags over capacity (120 > 100)", bookOver(book));
+
+/* ---------------------------------------------------------------------- */
+/*  Material picker + apparent-value disguise (GM tool)                    */
+/* ---------------------------------------------------------------------- */
+
+check("MATERIALS lists the material vocabulary", MATERIALS.includes("wood") && MATERIALS.includes("metal") && MATERIALS.includes("cloth"));
+const matItem = mockDoc("weapon", { name: "Mystery Rod" });
+await setMaterial(matItem, "wood");
+check("setMaterial stamps the flag; materialOf reads it", matItem._flags.material === "wood" && materialOf(matItem) === "wood");
+await setMaterial(matItem, "auto");
+check("setMaterial(auto) clears the flag → falls back to the guess", matItem._flags.material === undefined);
+
+const magic = mockDoc("weapon", { name: "Flametongue", cost: 5000, damage: "1d6+2" });
+await disguiseItem(magic, { name: "Old Sword", cost: 7, damage: "1d6" });
+check("disguise shows the apparent name/value/damage", magic.name === "Old Sword" && magic.system.cost === 7 && magic.system.damage === "1d6");
+check("disguise keeps the true identity hidden in a flag", isDisguised(magic) && magic._flags.disguise.true.name === "Flametongue" && magic._flags.disguise.true.cost === 5000);
+await revealItem(magic);
+check("reveal restores the true item + clears the disguise", magic.name === "Flametongue" && magic.system.cost === 5000 && magic.system.damage === "1d6+2" && !isDisguised(magic));
 
 console.log(`test-logic: all ${pass} checks passed`);

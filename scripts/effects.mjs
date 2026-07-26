@@ -14,6 +14,7 @@
 import { EFFECT_PREFIX, MODULE_ID, EFFECT_DOMAINS, LOADOUT_EFFECT_NAME, LOADOUT_EFFECT_FLAG } from "./constants.mjs";
 import { STYLE_SPEC_BONUS, STYLE, DUAL_WIELD_ATTACK_BONUS } from "./config.mjs";
 import { shieldACCorrection, specApplies } from "./overlays/shield-variants.mjs";
+import { enclosingHelmActive, HELM_MODIFIERS } from "./overlays/enclosing-helm.mjs";
 import { bridgeContributions } from "./abilities-bridge.mjs";
 
 /** All active effects on the actor, tolerant of Foundry version differences. */
@@ -185,6 +186,12 @@ export function buildLoadoutChanges(actor, loadout) {
   // unconditionally. Where RAW grants none (a buckler without Specialization, or
   // a shield strapped on the back), cancel it rather than fight core.
   add("system.aac.mod", shieldACCorrection(loadout, spec.has(STYLE.WEAPON_SHIELD.toLowerCase()), actor));
+
+  // Enclosing (heavy) helmet, RR p140: −1 to surprise rolls. The surprise matrix
+  // reads system.surprise.avoidsurprise, so lowering it makes the wearer harder
+  // to keep from being surprised. (−4 Listening is a proficiency throw with no
+  // field — surfaced as a note; +2 Mortal Wounds is core's, via hasHeavyHelm.)
+  if (enclosingHelmActive(actor)) add("system.surprise.avoidsurprise", HELM_MODIFIERS.surprise);
 
   return changes;
 }

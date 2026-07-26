@@ -68,6 +68,15 @@ export function stonesAtRisk(hp) {
   return 1 + Math.floor((Math.abs(v) - 6) / 6);
 }
 
+/** The material vocabulary (union of the damage-type tables), for the picker. */
+export const MATERIALS = Object.freeze([...new Set(Object.values(MATERIALS_BY_DAMAGE_TYPE).flat())].sort());
+
+/** Set an item's primary material ("auto"/empty clears the flag → the guess). */
+export async function setMaterial(item, material) {
+  if (!material || material === "auto") return item?.unsetFlag?.(MODULE_ID, ITEM_FLAGS.MATERIAL);
+  return item?.setFlag?.(MODULE_ID, ITEM_FLAGS.MATERIAL, String(material).toLowerCase());
+}
+
 /** An item's primary material: explicit flag, else a name/type guess. */
 export function materialOf(item) {
   const flagged = item?.getFlag?.(MODULE_ID, ITEM_FLAGS.MATERIAL);

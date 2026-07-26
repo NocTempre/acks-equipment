@@ -102,12 +102,16 @@ export function registerSettings() {
   overlay(SETTINGS.OVERLAY_ITEM_LOSS);
   overlay(SETTINGS.OVERLAY_NAMED);
   overlay(SETTINGS.OVERLAY_SCAVENGED);
+  // Enclosing helm (RR p140): a heavy helmet's −1 surprise / −4 Listening are
+  // applied by overlays/enclosing-helm.mjs (the loadout effect + a surfaced note);
+  // +2 Mortal Wounds is already core (AcksActor#hasHeavyHelm), name-based.
+  overlay(SETTINGS.OVERLAY_ENCLOSING_HELM);
 
-  // NOT REGISTERED — deliberately. OVERLAY_MOUNTED, OVERLAY_BEASTMAN, and
-  // OVERLAY_ENCLOSING_HELM have no implementation behind them: no code reads
-  // these keys. They were showing in the settings UI as working toggles that
-  // silently did nothing. The keys and their localised strings are kept so
-  // wiring them up is a one-line change once the overlays exist.
+  // NOT REGISTERED — deliberately. OVERLAY_MOUNTED and OVERLAY_BEASTMAN have no
+  // implementation behind them: no code reads these keys. They were showing in
+  // the settings UI as working toggles that silently did nothing. The keys and
+  // their localised strings are kept so wiring them up is a one-line change once
+  // the overlays exist.
   //
   // MOUNTED is no longer BLOCKED — acks-lib records who is riding what, and the
   // one flat mounted rule the module already had authored (a phalanx shield is

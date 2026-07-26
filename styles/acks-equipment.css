@@ -327,6 +327,45 @@
   padding: 0 0.25rem;
 }
 
+/* --- ACKS Properties panel on the item sheet ------------------------- */
+
+.acks-equipment-props {
+  margin-top: 0.5rem;
+  padding-top: 0.5rem;
+  border-top: 1px solid var(--color-border-light-tertiary, #782e2244);
+}
+
+.acks-equipment-props__title {
+  font-size: var(--font-size-13, 13px);
+  font-weight: bold;
+  margin: 0 0 0.35rem;
+  opacity: 0.85;
+}
+
+.acks-equipment-props__row {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  margin-bottom: 0.25rem;
+}
+
+.acks-equipment-props__label {
+  flex: 0 0 8em;
+  font-size: var(--font-size-12, 12px);
+}
+
+.acks-equipment-props__btn,
+.acks-equipment-props__select {
+  flex: 1;
+  min-height: 1.7rem;
+  font-size: var(--font-size-12, 12px);
+}
+
+.acks-equipment-props__btn.active {
+  font-weight: bold;
+  color: var(--color-level-warning, #b8860b);
+}
+
 /* --- Unarmed strike row ----------------------------------------------- */
 
 .acks-equipment-wear__bucket--unarmed .acks-equipment-unarmed {

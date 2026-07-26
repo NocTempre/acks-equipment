@@ -25,9 +25,16 @@ import { getLoadout, cycleGrip } from "./loadout.mjs";
 import {
   prepareTorch, rollUnarmed, setMasterwork, masterworkTiersFor, drawItem, sheatheItem,
   scavengeItem, clearScavenged, setShieldVariant, SHIELD_VARIANT_KEYS,
+  disguiseItem, revealItem, isDisguised,
 } from "./actions.mjs";
 import { cycleStrap, strapOf, variantOf, overlayEnabled as shieldOverlayEnabled } from "./overlays/shield-variants.mjs";
 import { overlayEnabled as scavengedOverlayEnabled } from "./overlays/scavenged.mjs";
+import { helmetType, isHelmet } from "./overlays/enclosing-helm.mjs";
+import {
+  isSpellbook, makeSpellbook, unmakeSpellbook, spellbookSpells, pagesUsed, pagesCapacity,
+  spellbookValue, setSpellbookSpells, parseSpellList, formatSpellList,
+} from "./spellbook.mjs";
+import { MATERIALS, setMaterial, materialOf } from "./overlays/item-loss.mjs";
 import { wearBuckets, wearLabel } from "./wear.mjs";
 import {
   containerReport,
@@ -463,6 +470,63 @@ async function openShieldVariantDialog(item) {
   if (choice) await setShieldVariant(item, choice);
 }
 
+/** Edit a spellbook's spell list (free text, one "Name, Level" per line). */
+async function openSpellbookDialog(item) {
+  const current = formatSpellList(spellbookSpells(item));
+  const result = await foundry.applications.api.DialogV2.wait({
+    window: { title: game.i18n.format("ACKS-EQUIPMENT.spellbook.title", { name: item.name }) },
+    content:
+      `<p>${game.i18n.localize("ACKS-EQUIPMENT.spellbook.prompt")}</p>` +
+      `<textarea name="spells" rows="12" style="width:100%;font-family:var(--font-mono,monospace)">${current}</textarea>`,
+    buttons: [
+      {
+        action: "save",
+        label: game.i18n.localize("ACKS-EQUIPMENT.spellbook.save"),
+        default: true,
+        callback: (event, button) => new foundry.applications.ux.FormDataExtended(button.form).object,
+      },
+      { action: "unmake", label: game.i18n.localize("ACKS-EQUIPMENT.spellbook.unmake") },
+      { action: "cancel", label: game.i18n.localize("Cancel") },
+    ],
+    rejectClose: false,
+  }).catch(() => null);
+  if (result === "unmake") return unmakeSpellbook(item);
+  if (result && typeof result === "object") await setSpellbookSpells(item, parseSpellList(result.spells));
+}
+
+/** GM dialog to set an item's apparent identity (or reveal its true one). */
+async function openDisguiseDialog(item) {
+  const esc = (s) => String(s ?? "").replace(/"/g, "&quot;");
+  const ap = item.getFlag(MODULE_ID, ITEM_FLAGS.DISGUISE)?.apparent ?? {};
+  const row = (label, name, value, type = "text") =>
+    `<div class="form-group"><label>${label}</label><input type="${type}" name="${name}" value="${esc(value)}"></div>`;
+  const content =
+    `<p>${game.i18n.localize("ACKS-EQUIPMENT.disguise.prompt")}</p><form>` +
+    row(game.i18n.localize("Name"), "name", ap.name ?? item.name) +
+    row(game.i18n.localize("ACKS-EQUIPMENT.disguise.cost"), "cost", ap.cost ?? item.system?.cost ?? 0, "number") +
+    (item.type === "weapon" ? row(game.i18n.localize("ACKS-EQUIPMENT.disguise.damage"), "damage", ap.damage ?? item.system?.damage ?? "") : "") +
+    (item.type === "armor" ? row(game.i18n.localize("ACKS-EQUIPMENT.disguise.ac"), "ac", ap.ac ?? item.system?.aac?.value ?? 0, "number") : "") +
+    `</form>`;
+  const buttons = [
+    {
+      action: "disguise",
+      label: game.i18n.localize("ACKS-EQUIPMENT.disguise.apply"),
+      default: true,
+      callback: (event, button) => new foundry.applications.ux.FormDataExtended(button.form).object,
+    },
+    ...(isDisguised(item) ? [{ action: "reveal", label: game.i18n.localize("ACKS-EQUIPMENT.disguise.reveal") }] : []),
+    { action: "cancel", label: game.i18n.localize("Cancel") },
+  ];
+  const result = await foundry.applications.api.DialogV2.wait({
+    window: { title: game.i18n.format("ACKS-EQUIPMENT.disguise.title", { name: item.name }) },
+    content,
+    buttons,
+    rejectClose: false,
+  }).catch(() => null);
+  if (result === "reveal") return revealItem(item);
+  if (result && typeof result === "object") await disguiseItem(item, result);
+}
+
 /** A small icon control in a container's header. */
 function ctrl(icon, tooltipKey, onClick, extraClass = "") {
   const a = el("a", `item-control acks-equipment-container__ctrl ${extraClass}`.trim());
@@ -686,6 +750,93 @@ function regroup(actor, tab) {
   if (actor.isOwner) wireDropTargets(actor, column);
 }
 
+/**
+ * The "ACKS Properties" panel on an ITEM's own sheet — the home for everything
+ * that describes WHAT an item is (as opposed to how a character is using it,
+ * which lives on the inventory rows). One place to set masterwork, a scavenged
+ * condition, material, a shield variant, a helmet's weight, a spellbook, or a GM
+ * apparent-identity — on any weapon, armour, or item, whether or not it is on an
+ * actor. Reuses the same dialogs the inventory-row controls use.
+ */
+function injectItemProperties(app, element) {
+  try {
+    const item = app?.item ?? app?.document;
+    if (item?.documentName !== "Item" || !["weapon", "armor", "item"].includes(item.type)) return;
+    const form = element?.querySelector?.("form") ?? element;
+    if (!form || form.querySelector(".acks-equipment-props")) return;
+
+    const section = el("section", "acks-equipment-props");
+    section.append(el("h3", "acks-equipment-props__title", game.i18n.localize("ACKS-EQUIPMENT.props.section")));
+    const row = (labelKey, control) => {
+      const g = el("div", "acks-equipment-props__row");
+      g.append(el("label", "acks-equipment-props__label", game.i18n.localize(labelKey)), control);
+      section.append(g);
+    };
+    const button = (text, tooltipKey, onClick, extraClass = "") => {
+      const b = el("button", `acks-equipment-props__btn ${extraClass}`.trim(), text);
+      b.type = "button";
+      if (tooltipKey) b.dataset.tooltip = game.i18n.localize(tooltipKey);
+      b.addEventListener("click", (ev) => {
+        ev.preventDefault();
+        ev.stopPropagation();
+        Promise.resolve(onClick()).catch((e) => console.error(`${MODULE_ID} | item property`, e));
+      });
+      return b;
+    };
+
+    if (item.type === "weapon" || item.type === "armor") {
+      const tier = item.getFlag(MODULE_ID, ITEM_FLAGS.MASTERWORK)?.tier;
+      row("ACKS-EQUIPMENT.props.masterwork", button(
+        tier ? game.i18n.localize(`ACKS-EQUIPMENT.masterwork.${tier}`) : game.i18n.localize("ACKS-EQUIPMENT.masterwork.none"),
+        "ACKS-EQUIPMENT.masterwork.control", () => openMasterworkDialog(item), tier ? "active" : ""));
+
+      const sc = item.getFlag(MODULE_ID, "scavenged");
+      row("ACKS-EQUIPMENT.props.condition", button(
+        sc?.labels?.length ? sc.labels.join(", ") : game.i18n.localize("ACKS-EQUIPMENT.props.pristine"),
+        "ACKS-EQUIPMENT.action.scavengeHint", () => openScavengeDialog(item), sc ? "active" : ""));
+    }
+
+    // Material (any physical item) — a picker; "Auto" clears the flag → the guess.
+    const sel = el("select", "acks-equipment-props__select");
+    const curMat = item.getFlag(MODULE_ID, ITEM_FLAGS.MATERIAL);
+    sel.innerHTML =
+      `<option value="auto">${game.i18n.format("ACKS-EQUIPMENT.props.materialAuto", { guess: materialOf(item) })}</option>` +
+      MATERIALS.map((m) => `<option value="${m}">${m}</option>`).join("");
+    sel.value = curMat ? String(curMat).toLowerCase() : "auto";
+    sel.addEventListener("change", () => setMaterial(item, sel.value).catch((e) => console.error(`${MODULE_ID} | material`, e)));
+    row("ACKS-EQUIPMENT.props.material", sel);
+
+    if (item.type === "armor" && item.system?.type === "shield") {
+      row("ACKS-EQUIPMENT.props.variant", button(variantOf(item).label, "ACKS-EQUIPMENT.variant.cycle", () => openShieldVariantDialog(item)));
+    }
+    if (isHelmet(item)) {
+      const t = helmetType(item);
+      row("ACKS-EQUIPMENT.props.helm", button(
+        game.i18n.localize(`ACKS-EQUIPMENT.helm.${t}`),
+        t === "heavy" ? "ACKS-EQUIPMENT.helm.heavyHint" : "ACKS-EQUIPMENT.helm.cycle",
+        () => item.setFlag(MODULE_ID, ITEM_FLAGS.HELMET, t === "heavy" ? "light" : "heavy"), `acks-equipment-helm--${t}`));
+    }
+    if (item.type === "item") {
+      const book = isSpellbook(item);
+      row("ACKS-EQUIPMENT.props.spellbook", button(
+        book ? `${pagesUsed(item)}/${pagesCapacity(item)}pg · ${spellbookValue(item)}gp` : game.i18n.localize("ACKS-EQUIPMENT.spellbook.make"),
+        book ? "ACKS-EQUIPMENT.spellbook.manageHint" : "ACKS-EQUIPMENT.spellbook.makeHint",
+        () => (book ? openSpellbookDialog(item) : makeSpellbook(item)), book ? "active" : ""));
+    }
+    if (game.user?.isGM) {
+      const on = isDisguised(item);
+      row("ACKS-EQUIPMENT.props.disguise", button(
+        on ? game.i18n.format("ACKS-EQUIPMENT.disguise.shown", { name: item.getFlag(MODULE_ID, ITEM_FLAGS.DISGUISE)?.true?.name ?? "?" }) : game.i18n.localize("ACKS-EQUIPMENT.disguise.apply"),
+        on ? "ACKS-EQUIPMENT.disguise.activeHint" : "ACKS-EQUIPMENT.disguise.hint",
+        () => openDisguiseDialog(item), on ? "active" : ""));
+    }
+
+    form.appendChild(section);
+  } catch (err) {
+    console.error(`${MODULE_ID} | item property panel failed`, err);
+  }
+}
+
 function onRenderCharacterSheet(app, element) {
   try {
     if (app?.actor?.type !== "character") return;
@@ -718,5 +869,9 @@ export function registerSheet() {
   Hooks.on("renderApplicationV2", onRenderCharacterSheet);
   Hooks.on("renderActorSheetV2", onRenderCharacterSheet);
   Hooks.on("renderACKSCharacterSheetV2", onRenderCharacterSheet);
-  console.debug(`${MODULE_ID} | inventory wear buckets registered.`);
+  // The ACKS Properties panel on an item's own sheet (masterwork, condition,
+  // material, variant, helmet, spellbook, disguise). Guards on the document type.
+  Hooks.on("renderApplicationV2", injectItemProperties);
+  Hooks.on("renderItemSheetV2", injectItemProperties);
+  console.debug(`${MODULE_ID} | inventory wear buckets + item property panel registered.`);
 }
