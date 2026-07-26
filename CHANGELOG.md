@@ -3,6 +3,24 @@
 Releases up to and including 0.15.1 predate this file; see the git history
 and GitHub releases for earlier changes.
 
+## 0.27.0
+
+- **Apply RAW qualities to ANY valid item — no pre-made variants needed.** Audit
+  of equipment properties that were modeled but had no way to apply them:
+  - **Scavenged equipment (RR p160)** was fully modeled (condition tables, −5
+    caps, 19–20 rerolls) but had no trigger. A new **Scavenge** control on every
+    weapon/armour row rolls the right table onto the item and stamps the result
+    on its own fields (−damage → a "1d6-1" string, −attack → bonus, −AC, +stone),
+    reversibly, and posts a chat card. Re-rolling starts from pristine so
+    conditions never compound; Clear restores the item.
+  - **Shield variants (JJ p407)** could only be gotten from the sample pack. A new
+    **variant** control on every shield row makes *any* shield a buckler, kite,
+    phalanx, etc. — AC/encumbrance/strap rules follow the choice.
+  - Both are gated on their optional-rule overlay settings and exposed on the API
+    (`scavengeItem`, `clearScavenged`, `setShieldVariant`).
+  - Not folded in (flagged for later): the **enclosing-helm** rules (RR p128) have
+    no mechanics yet — a missing feature, not a missing control.
+
 ## 0.26.0
 
 - **Torch: carry a stack, ready one to wield.** A torch now imports as a carried

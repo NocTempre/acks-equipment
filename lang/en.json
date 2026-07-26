@@ -171,7 +171,14 @@
       "sheathe": "Sheathe (unequip)",
       "readied": "Readied a torch from the stack.",
       "readyHint": "Ready a torch — pull one from the stack as a 1d4 light-weapon you can wield, light, or throw.",
-      "noStock": "No {item} left in the stack to ready."
+      "noStock": "No {item} left in the stack to ready.",
+      "scavenge": "Scavenged",
+      "scavengeHint": "Scavenged equipment (RR p. 159–160) — roll a condition onto this item and apply its mechanical effects.",
+      "scavengeTitle": "Scavenged condition — {name}",
+      "scavengePrompt": "Roll a random condition (RR p. 160) and stamp it onto this item's own fields (damage / attack / AC / weight). It can be cleared back to pristine at any time.",
+      "scavengeRoll": "Roll condition",
+      "scavengeReroll": "Re-roll (from pristine)",
+      "scavengeClear": "Clear (restore pristine)"
     },
     "masterwork": {
       "control": "Masterwork (RR p. 159)",
@@ -189,6 +196,11 @@
       "hand": "In hand",
       "back": "Back",
       "front": "Front"
+    },
+    "variant": {
+      "cycle": "Shield variant (JJ pp. 407–408) — click to choose buckler, kite, phalanx, and so on.",
+      "title": "Shield variant — {name}",
+      "prompt": "Choose which shield this is. Its AC benefit, encumbrance, and carry options follow from the variant."
     }
   },
   "ACKS-EQUIPMENT.container.expand": "Show contents",

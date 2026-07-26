@@ -15,7 +15,7 @@ import { maneuverMods, MANEUVERS } from "./overlays/maneuvers.mjs";
 import * as named from "./overlays/named.mjs";
 import { clearFromPaperDoll } from "./paperdoll.mjs";
 import { consumeForAttack, recoverThrown, isThrownAway, consumeItem } from "./ammo.mjs";
-import { prepareTorch, rollUnarmed, unarmedStrikeData, setMasterwork, masterworkTiersFor, drawItem, sheatheItem } from "./actions.mjs";
+import { prepareTorch, rollUnarmed, unarmedStrikeData, setMasterwork, masterworkTiersFor, drawItem, sheatheItem, scavengeItem, clearScavenged, setShieldVariant, SHIELD_VARIANT_KEYS } from "./actions.mjs";
 import { cycleStrap, strapOf, canStrap } from "./overlays/shield-variants.mjs";
 import {
   containerReport,
@@ -127,6 +127,10 @@ export function buildApi() {
     sheatheItem,
     setMasterwork,
     masterworkTiersFor,
+    scavengeItem,
+    clearScavenged,
+    setShieldVariant,
+    SHIELD_VARIANT_KEYS,
     cycleStrap,
     strapOf,
     canStrap,

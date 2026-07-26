@@ -5,9 +5,10 @@
  * against mock documents, and exposed on the module API for macros.
  */
 import { MODULE_ID, ITEM_FLAGS } from "./constants.mjs";
-import { MASTERWORK } from "./config.mjs";
-import { equipmentClass } from "./profiles.mjs";
+import { MASTERWORK, SHIELD_VARIANTS } from "./config.mjs";
+import { equipmentClass, classifyWeapon } from "./profiles.mjs";
 import { consumeItem, roundsOf } from "./ammo.mjs";
+import { tableFor, accumulate, needsReroll, toItemUpdates } from "./overlays/scavenged.mjs";
 
 function notify(key, data) {
   const full = `ACKS-EQUIPMENT.action.${key}`;
@@ -177,4 +178,97 @@ export async function setMasterwork(item, tier) {
   update["system.weight6"] = Math.max(0, base.weight6 - (mw.weightMinusStone ?? 0) * 6);
   await item.update?.(update);
   await item.setFlag?.(MODULE_ID, ITEM_FLAGS.MASTERWORK, { tier, base });
+}
+
+/* -------------------------------------------------------------------------- */
+/*  Scavenged equipment (RR p160): roll a condition onto any weapon/armour     */
+/* -------------------------------------------------------------------------- */
+
+const rollD20 = () => 1 + Math.floor(Math.random() * 20);
+
+/**
+ * Expand a scavenged roll: each 19-20 result spawns two more d20s (RR p160),
+ * accumulated in roll order. Bounded so a cascade of rerolls cannot loop. The
+ * roller is injectable so tests can drive it deterministically.
+ * @returns {number[]} every d20 rolled, in order.
+ */
+export function rollScavengedD20s(tableKey, roll = rollD20) {
+  const rolls = [];
+  const queue = [roll()];
+  let guard = 0;
+  while (queue.length && guard++ < 32) {
+    const r = queue.shift();
+    rolls.push(r);
+    if (needsReroll(tableKey, r)) queue.push(roll(), roll());
+  }
+  return rolls;
+}
+
+/** The pristine (pre-scavenge) fields captured for exact reversal. */
+const scavengeBase = (item) => ({
+  bonus: Number(item.system?.bonus ?? 0),
+  damage: item.system?.damage ?? "",
+  ac: Number(item.system?.aac?.value ?? 0),
+  weight6: Number(item.system?.weight6 ?? 0),
+});
+
+/** Restore an item's fields from a stored scavenged base (no-op if none). */
+async function restoreScavengeBase(item) {
+  const sc = item.getFlag?.(MODULE_ID, "scavenged");
+  if (!sc?.base) return;
+  await item.update?.({
+    "system.bonus": sc.base.bonus,
+    ...(item.type === "weapon" ? { "system.damage": sc.base.damage } : {}),
+    ...(item.type === "armor" ? { "system.aac.value": sc.base.ac } : {}),
+    "system.weight6": sc.base.weight6,
+  });
+}
+
+/** Clear a scavenged condition, restoring the item's pristine fields. */
+export async function clearScavenged(item) {
+  await restoreScavengeBase(item);
+  await item.unsetFlag?.(MODULE_ID, "scavenged");
+}
+
+/**
+ * Roll a scavenged condition (RR p160) onto any weapon or armour and stamp the
+ * result on the item's own core fields (−damage → a "1d6-1" string, −attack →
+ * bonus, −AC → aac.value, +stone → weight6) plus a `scavenged` flag carrying the
+ * labels, break/sneak/initiative notes, and value multiplier for the Judge.
+ * REVERSIBLE: the pristine fields are remembered under the flag, and a re-roll
+ * restores them first so conditions never compound. The right table is chosen
+ * from the item type + damage type. `roll` is injectable for tests.
+ * @returns {Promise<{rolls:number[], tableKey:string, cond:object}|null>}
+ */
+export async function scavengeItem(item, { roll } = {}) {
+  if (!item || (item.type !== "weapon" && item.type !== "armor")) return null;
+  await restoreScavengeBase(item); // a re-roll always starts from pristine fields
+  const base = scavengeBase(item);
+  const profile = item.type === "weapon" ? classifyWeapon(item) : null;
+  const tableKey = tableFor(item, profile);
+  const rolls = rollScavengedD20s(tableKey, roll);
+  const cond = accumulate(tableKey, rolls);
+  const updates = toItemUpdates(item, cond); // reads the pristine fields restored above
+  updates[`flags.${MODULE_ID}.scavenged`] = { ...updates[`flags.${MODULE_ID}.scavenged`], base };
+  await item.update?.(updates);
+  return { rolls, tableKey, cond };
+}
+
+/* -------------------------------------------------------------------------- */
+/*  Shield variant (JJ pp407-408): make any shield a buckler/kite/etc.        */
+/* -------------------------------------------------------------------------- */
+
+/** Every shield-variant key (standard + the six JJ variants). */
+export const SHIELD_VARIANT_KEYS = Object.keys(SHIELD_VARIANTS);
+
+/**
+ * Set (or clear) a shield's variant. The AC correction, encumbrance, strap
+ * validity, and Specialization rules all read this flag live through the
+ * shield-variant overlay, so a plain shield becomes a buckler/kite/etc. with no
+ * field stamping — clearing back to "standard" removes the flag.
+ */
+export async function setShieldVariant(item, key) {
+  if (!item) return;
+  if (!key || key === "standard") await item.unsetFlag?.(MODULE_ID, ITEM_FLAGS.SHIELD_VARIANT);
+  else await item.setFlag?.(MODULE_ID, ITEM_FLAGS.SHIELD_VARIANT, key);
 }

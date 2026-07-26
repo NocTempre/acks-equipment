@@ -20,10 +20,14 @@
  * its own, this file should be deleted in favour of contributing to it.
  */
 import { MODULE_ID, ITEM_FLAGS } from "./constants.mjs";
-import { WEAR_ICONS } from "./config.mjs";
+import { WEAR_ICONS, SHIELD_VARIANTS } from "./config.mjs";
 import { getLoadout, cycleGrip } from "./loadout.mjs";
-import { prepareTorch, rollUnarmed, setMasterwork, masterworkTiersFor, drawItem, sheatheItem } from "./actions.mjs";
-import { cycleStrap, strapOf, overlayEnabled } from "./overlays/shield-variants.mjs";
+import {
+  prepareTorch, rollUnarmed, setMasterwork, masterworkTiersFor, drawItem, sheatheItem,
+  scavengeItem, clearScavenged, setShieldVariant, SHIELD_VARIANT_KEYS,
+} from "./actions.mjs";
+import { cycleStrap, strapOf, variantOf, overlayEnabled as shieldOverlayEnabled } from "./overlays/shield-variants.mjs";
+import { overlayEnabled as scavengedOverlayEnabled } from "./overlays/scavenged.mjs";
 import { wearBuckets, wearLabel } from "./wear.mjs";
 import {
   containerReport,
@@ -336,7 +340,7 @@ async function openMasterworkDialog(item) {
  * shield cannot take (a kite/phalanx shield has no back).
  */
 function injectStrapControls(tab, actor) {
-  if (!actor?.isOwner || !overlayEnabled()) return;
+  if (!actor?.isOwner || !shieldOverlayEnabled()) return;
   for (const li of tab.querySelectorAll("li.item[data-item-id]")) {
     const item = actor.items.get(li.dataset.itemId);
     if (item?.type !== "armor" || item.system?.type !== "shield" || li.querySelector(".acks-equipment-strap")) continue;
@@ -351,6 +355,112 @@ function injectStrapControls(tab, actor) {
     });
     rowControls(li).insertBefore(a, rowControls(li).firstChild);
   }
+}
+
+/**
+ * Scavenge control on every weapon and armour row (worn OR carried), gated on
+ * the scavenged overlay. Opens a picker that ROLLS a condition (RR p160) onto
+ * the item — the right table by type, 19-20 rerolls — and stamps the result on
+ * the item's own core fields, reversibly. This is the "apply a scavenged
+ * condition to any valid item" the property always modeled but never exposed.
+ */
+function injectScavengeControls(tab, actor) {
+  if (!actor?.isOwner || !scavengedOverlayEnabled()) return;
+  for (const li of tab.querySelectorAll("li.item[data-item-id]")) {
+    const item = actor.items.get(li.dataset.itemId);
+    if (!item || (item.type !== "weapon" && item.type !== "armor") || li.querySelector(".acks-equipment-scavenge")) continue;
+    const active = !!item.getFlag?.(MODULE_ID, "scavenged");
+    const a = el("a", `item-control acks-equipment-scavenge${active ? " acks-equipment-scavenge--active" : ""}`);
+    a.innerHTML = `<i class="fas fa-screwdriver-wrench"></i>`;
+    a.dataset.tooltip = game.i18n.localize("ACKS-EQUIPMENT.action.scavengeHint");
+    a.addEventListener("click", (ev) => {
+      ev.preventDefault();
+      ev.stopPropagation();
+      openScavengeDialog(item).catch((err) => console.error(`${MODULE_ID} | scavenge failed`, err));
+    });
+    rowControls(li).insertBefore(a, rowControls(li).firstChild);
+  }
+}
+
+/** Roll (or clear) a scavenged condition on an item and announce the result. */
+async function openScavengeDialog(item) {
+  const scavenged = !!item.getFlag?.(MODULE_ID, "scavenged");
+  const buttons = [
+    { action: "roll", label: game.i18n.localize(scavenged ? "ACKS-EQUIPMENT.action.scavengeReroll" : "ACKS-EQUIPMENT.action.scavengeRoll"), default: true },
+    ...(scavenged ? [{ action: "clear", label: game.i18n.localize("ACKS-EQUIPMENT.action.scavengeClear") }] : []),
+    { action: "cancel", label: game.i18n.localize("Cancel") },
+  ];
+  const choice = await foundry.applications.api.DialogV2.wait({
+    window: { title: game.i18n.format("ACKS-EQUIPMENT.action.scavengeTitle", { name: item.name }) },
+    content: `<p>${game.i18n.localize("ACKS-EQUIPMENT.action.scavengePrompt")}</p>`,
+    buttons,
+    rejectClose: false,
+  }).catch(() => null);
+  if (choice === "clear") return clearScavenged(item);
+  if (choice !== "roll") return;
+  const result = await scavengeItem(item);
+  if (result) await postScavengeCard(item, result);
+}
+
+/** Chat card summarising a scavenged roll (d20s + the mechanical condition). */
+async function postScavengeCard(item, { rolls, cond }) {
+  const mech = [];
+  if (cond.attack) mech.push(`${cond.attack} attack`);
+  if (cond.damage) mech.push(`${cond.damage} damage`);
+  if (cond.ac) mech.push(`${cond.ac} AC`);
+  if (cond.encumbrance) mech.push(`+${cond.encumbrance} stone`);
+  if (cond.initiative) mech.push(`${cond.initiative} initiative`);
+  if (cond.breaks) mech.push("breaks on a natural 1");
+  if (cond.cannotSneak) mech.push("cannot sneak/hide");
+  const labels = cond.labels.length ? cond.labels.join("; ") : "Serviceable";
+  const content =
+    `<div class="acks-equipment-scavenge-card"><strong>${item.name}</strong> — ` +
+    `${game.i18n.localize("ACKS-EQUIPMENT.action.scavenge")} (d20: ${rolls.join(", ")})<br>${labels}` +
+    `${mech.length ? `<br><em>${mech.join(", ")}</em>` : ""}` +
+    `<br>${Math.round(cond.valueMultiplier * 100)}% of normal value</div>`;
+  await ChatMessage.create({ content, speaker: ChatMessage.getSpeaker({ actor: item.parent }) });
+}
+
+/**
+ * Shield-variant control on every shield row, gated on the shield-variant
+ * overlay. Opens a picker that sets which JJ variant a shield is (standard,
+ * buckler, auxiliary, crescent, heater, kite, phalanx) — so ANY shield can be
+ * made a buckler, not just the sample-pack one. AC/encumbrance/strap rules all
+ * read the flag live, so no field stamping is needed.
+ */
+function injectShieldVariantControls(tab, actor) {
+  if (!actor?.isOwner || !shieldOverlayEnabled()) return;
+  for (const li of tab.querySelectorAll("li.item[data-item-id]")) {
+    const item = actor.items.get(li.dataset.itemId);
+    if (item?.type !== "armor" || item.system?.type !== "shield" || li.querySelector(".acks-equipment-variant")) continue;
+    const cur = variantOf(item);
+    const a = el("a", "item-control acks-equipment-variant");
+    a.innerHTML = `<i class="fas fa-shield-heart"></i> ${cur.label}`;
+    a.dataset.tooltip = game.i18n.localize("ACKS-EQUIPMENT.variant.cycle");
+    a.addEventListener("click", (ev) => {
+      ev.preventDefault();
+      ev.stopPropagation();
+      openShieldVariantDialog(item).catch((err) => console.error(`${MODULE_ID} | shield variant failed`, err));
+    });
+    rowControls(li).insertBefore(a, rowControls(li).firstChild);
+  }
+}
+
+/** Pick which JJ variant a shield is, then set it. */
+async function openShieldVariantDialog(item) {
+  const cur = item.getFlag?.(MODULE_ID, ITEM_FLAGS.SHIELD_VARIANT) ?? "standard";
+  const buttons = SHIELD_VARIANT_KEYS.map((k) => ({
+    action: k,
+    label: SHIELD_VARIANTS[k]?.label ?? k,
+    default: k === cur,
+  }));
+  const choice = await foundry.applications.api.DialogV2.wait({
+    window: { title: game.i18n.format("ACKS-EQUIPMENT.variant.title", { name: item.name }) },
+    content: `<p>${game.i18n.localize("ACKS-EQUIPMENT.variant.prompt")}</p>`,
+    buttons,
+    rejectClose: false,
+  }).catch(() => null);
+  if (choice) await setShieldVariant(item, choice);
 }
 
 /** A small icon control in a container's header. */
@@ -593,7 +703,9 @@ function onRenderCharacterSheet(app, element) {
     injectTorchReady(tab, app.actor); // Ready a torch from a stack (formation-independent)
     injectDrawSheathe(tab, app.actor); // Draw / sheathe every weapon
     injectMasterworkControls(tab, app.actor); // Masterwork picker (weapons + armour)
+    injectScavengeControls(tab, app.actor); // Scavenge condition (weapons + armour, overlay-gated)
     injectStrapControls(tab, app.actor); // Sling a shield (overlay-gated)
+    injectShieldVariantControls(tab, app.actor); // Make any shield a buckler/kite/etc. (overlay-gated)
   } catch (err) {
     console.error(`${MODULE_ID} | inventory regrouping failed; core's layout stands`, err);
   }

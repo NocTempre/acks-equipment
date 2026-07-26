@@ -66,7 +66,7 @@ const { buildLoadoutChanges } = await import(new URL("effects.mjs", S));
 const { weaponProficiency, isWeaponProficient, armorMax, isArmorProficient, thiefSkillsGated, swashbucklingAC } = await import(new URL("proficiency.mjs", S));
 const { buildProficiencies, buildSamples, buildActors } = await import(new URL("../tools/pack-data.mjs", import.meta.url));
 const { computeAttackMods } = await import(new URL("roll-wrap.mjs", S));
-const { readiedWeaponData, prepareTorch, unarmedStrikeData, masterworkTiersFor, addToDamage, setMasterwork } = await import(new URL("actions.mjs", S));
+const { readiedWeaponData, prepareTorch, unarmedStrikeData, masterworkTiersFor, addToDamage, setMasterwork, scavengeItem, clearScavenged, rollScavengedD20s, setShieldVariant } = await import(new URL("actions.mjs", S));
 const { cycleStrap, strapOf } = await import(new URL("overlays/shield-variants.mjs", S));
 
 const weapon = (name, over = {}) => ({
@@ -1302,13 +1302,19 @@ check("masterworkTiersFor lists weapon vs armor tiers", masterworkTiersFor("weap
 
 const mockDoc = (type, sys = {}) => ({
   type,
-  system: { bonus: sys.bonus ?? 0, damage: sys.damage, aac: { value: sys.aac ?? 0 }, weight6: sys.weight6 ?? 0 },
+  name: sys.name ?? "Sword",
+  system: { bonus: sys.bonus ?? 0, damage: sys.damage, aac: { value: sys.aac ?? 0 }, weight6: sys.weight6 ?? 0, tags: [], type: sys.armorType },
   _flags: {},
   getFlag(_m, k) { return this._flags[k]; },
   async setFlag(_m, k, v) { this._flags[k] = v; },
   async unsetFlag(_m, k) { delete this._flags[k]; },
   async update(u) {
     for (const [path, v] of Object.entries(u)) {
+      // Foundry routes a flags.<module>.<key> update to the flag store; mirror that.
+      if (path.startsWith("flags.acks-equipment.")) {
+        this._flags[path.slice("flags.acks-equipment.".length)] = v;
+        continue;
+      }
       const parts = path.replace(/^system\./, "").split(".");
       let o = this.system;
       while (parts.length > 1) o = o[parts.shift()] ??= {};
@@ -1344,6 +1350,41 @@ check("cycle hand → back", (await cycleStrap(shieldDoc)) === "back" && shieldD
 check("cycle back → front", (await cycleStrap(shieldDoc)) === "front");
 check("cycle front → hand clears the flag", (await cycleStrap(shieldDoc)) === "hand" && shieldDoc._flags.strap === undefined);
 check("a kite shield skips the back (no-back): hand → front", (await cycleStrap(strapMock("kite"))) === "front");
+
+/* ---------------------------------------------------------------------- */
+/*  Apply-to-any-item: scavenge condition + shield variant (UI actions)    */
+/* ---------------------------------------------------------------------- */
+
+// rollScavengedD20s expands each 19-20 into two more rolls, in order.
+const seq = (arr) => { let i = 0; return () => arr[i++]; };
+check("scavenge 19-20 expands into two more d20s", JSON.stringify(rollScavengedD20s("piercingSlashing", seq([19, 7, 15]))) === JSON.stringify([19, 7, 15]));
+check("scavenge single non-reroll result = one d20", JSON.stringify(rollScavengedD20s("piercingSlashing", () => 7)) === JSON.stringify([7]));
+
+// Scavenge stamps a condition onto a real-shaped weapon, reversibly.
+const scWeapon = mockDoc("weapon", { name: "Sword", damage: "1d6", bonus: 0 });
+await scavengeItem(scWeapon, { roll: () => 7 }); // "Blade rusty" → -1 damage
+check("scavenge stamps -1 damage onto a weapon", scWeapon.system.damage === "1d6-1");
+check("scavenge records pristine base for reversal", scWeapon._flags.scavenged?.base?.damage === "1d6");
+await clearScavenged(scWeapon);
+check("clearScavenged restores pristine damage + clears the flag", scWeapon.system.damage === "1d6" && scWeapon._flags.scavenged === undefined);
+
+// Re-rolling never compounds (restores base first).
+await scavengeItem(scWeapon, { roll: () => 7 });
+await scavengeItem(scWeapon, { roll: () => 3 }); // "Blade dented" → -1 damage (from pristine, not -2)
+check("re-scavenge starts from pristine (no compounding)", scWeapon.system.damage === "1d6-1");
+
+// Armour scavenge: -1 AC + a break flag for the Judge.
+const scArmor = mockDoc("armor", { name: "Plate", aac: 6, weight6: 36, armorType: "heavy" });
+await scavengeItem(scArmor, { roll: () => 13 }); // "Dented/rotting" → -1 AC, breaks
+check("scavenge stamps -1 AC on armour + records break flag", scArmor.system.aac.value === 5 && scArmor._flags.scavenged?.breaks === true);
+
+// Shield variant: make any shield a buckler, and clear back to standard.
+const shieldVar = mockDoc("armor", { name: "Shield", aac: 1, armorType: "shield" });
+await setShieldVariant(shieldVar, "buckler");
+check("setShieldVariant sets the variant flag", shieldVar._flags.shieldVariant === "buckler");
+await setShieldVariant(shieldVar, "standard");
+check("setShieldVariant standard clears the flag", shieldVar._flags.shieldVariant === undefined);
+
 SETTINGS_STATE.overlayShieldVariants = false;
 
 console.log(`test-logic: all ${pass} checks passed`);

@@ -313,6 +313,20 @@
   color: var(--color-level-warning, #b8860b);
 }
 
+/* --- Scavenge control: lit when a condition is applied ---------------- */
+
+.acks-equipment-scavenge--active {
+  color: var(--color-level-error, #b60205);
+}
+
+/* --- Shield-variant control: small text label + icon ----------------- */
+
+.acks-equipment-variant {
+  font-size: var(--font-size-11, 11px);
+  white-space: nowrap;
+  padding: 0 0.25rem;
+}
+
 /* --- Unarmed strike row ----------------------------------------------- */
 
 .acks-equipment-wear__bucket--unarmed .acks-equipment-unarmed {
