@@ -3,6 +3,29 @@
 Releases up to and including 0.15.1 predate this file; see the git history
 and GitHub releases for earlier changes.
 
+## 0.31.0
+
+- **Fix: item properties did not save at all.** The panel's dropdowns and fields
+  sit inside core's sheet form, and an ApplicationV2 sheet submits on change — so
+  every selection bubbled to core's handler, which re-rendered the sheet from its
+  own form data and discarded the write in flight. Picking a masterwork tier, a
+  condition or a material looked like it did nothing, because nothing persisted.
+  Their change events are now stopped before they reach the form.
+- **Gold value follows the properties.** Masterwork adds its RR p159 surcharge
+  (+80gp / +650gp) and a scavenged condition applies its resale percentage, both
+  recomputed from the item's pristine price — so 50gp armour made masterwork is
+  700gp, and 469gp once it also has broken straps. Clearing the layers restores
+  the original price exactly.
+- **The panel says what each property did.** A **Net effect** line spells out the
+  combined result — "+1 AC, 700gp (was 50gp)" — including a scavenged condition's
+  break / cannot-sneak / initiative notes and any effect text the vessel table
+  carries. **Material** now explains that it decides which damage types can
+  destroy the item (JJ p398) rather than granting a modifier.
+- **Disguise state is always visible.** The row reads either "Not disguised" or
+  names the true item hiding underneath, and offers Update / Reveal. A GM
+  previously had no way to tell a disguise was on — the item is supposed to look
+  mundane everywhere else.
+
 ## 0.30.0
 
 - **The condition control now reads YOUR book's table.** acks-content 0.56.0

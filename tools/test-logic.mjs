@@ -1405,6 +1405,22 @@ await clearScavenged(both);
 check("clearing the LAST layer restores the item exactly + drops the baseline",
   both.system.bonus === 0 && both.system.damage === "1d6" && both.system.weight6 === 6 && both._flags.pristine === undefined);
 
+/* --- GOLD VALUE follows the layers (the number on the sheet must move) --- */
+const priced = mockDoc("weapon", { name: "Sword", damage: "1d6", cost: 10, weight6: 6 });
+await setMasterwork(priced, "weaponToHit"); // +1 hit, +80gp (RR p159)
+check("masterwork adds its surcharge to the price (10 → 90gp)", priced.system.cost === 90);
+await scavengeItem(priced, { roll: () => 7 }); // rusty: -1 dmg, -33% value
+check("a scavenged condition scales the price (90 × 0.67 ≈ 60.3gp)", Math.abs(priced.system.cost - 60.3) < 0.01);
+await setMasterwork(priced, "none");
+check("dropping masterwork reprices from pristine (10 × 0.67 = 6.7gp)", Math.abs(priced.system.cost - 6.7) < 0.01);
+await clearScavenged(priced);
+check("clearing every layer restores the original price", priced.system.cost === 10);
+const { layerSummary } = await import(new URL("properties.mjs", S));
+const p3 = mockDoc("armor", { name: "Plate", aac: 6, cost: 60, weight6: 36 });
+await setMasterwork(p3, "armorAC"); // +1 AC, +650gp
+check("armour masterwork: +1 AC and +650gp both land", p3.system.aac.value === 7 && p3.system.cost === 710);
+check("layerSummary states the new price so the sheet can explain it", /710gp \(was 60gp\)/.test(layerSummary(p3)));
+
 // Shield variant: make any shield a buckler, and clear back to standard.
 const shieldVar = mockDoc("armor", { name: "Shield", aac: 1, armorType: "shield" });
 await setShieldVariant(shieldVar, "buckler");

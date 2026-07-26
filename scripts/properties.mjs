@@ -57,6 +57,7 @@ export function pristineOf(item) {
       damage: item?.system?.damage ?? "",
       ac: Number(item?.system?.aac?.value ?? 0),
       weight6: Number(item?.system?.weight6 ?? 0),
+      cost: Number(item?.system?.cost ?? 0),
     }
   );
 }
@@ -71,19 +72,25 @@ export const scavengedOf = (item) => item?.getFlag?.(MODULE_ID, "scavenged") ?? 
  * @returns {{bonus:number, damage:number, ac:number, weight6:number}}
  */
 export function layerDeltas(item, { masterwork = masterworkTierOf(item), scavenged = scavengedOf(item) } = {}) {
-  const d = { bonus: 0, damage: 0, ac: 0, weight6: 0 };
+  // `costAdd` is added to the pristine price; `costMul` then scales the whole —
+  // a masterwork item costs its surcharge MORE, and a scavenged one is worth a
+  // fraction of whatever it would otherwise fetch (RR p160 sells scavenged gear
+  // "in volumes determined by their actual (reduced) value").
+  const d = { bonus: 0, damage: 0, ac: 0, weight6: 0, costAdd: 0, costMul: 1 };
   const mw = masterwork && masterwork !== "none" ? MASTERWORK[masterwork] : null;
   if (mw) {
     d.bonus += mw.toHit ?? 0;
     d.damage += mw.toDamage ?? 0;
     d.ac += mw.ac ?? 0;
     d.weight6 -= (mw.weightMinusStone ?? 0) * 6;
+    d.costAdd += mw.cost ?? 0;
   }
   if (scavenged) {
     d.bonus += scavenged.attack ?? 0;
     d.damage += scavenged.damage ?? 0;
     d.ac += scavenged.ac ?? 0;
     d.weight6 += (scavenged.encumbrance ?? 0) * 6;
+    if (Number.isFinite(scavenged.valueMultiplier)) d.costMul *= scavenged.valueMultiplier;
   }
   return d;
 }
@@ -114,6 +121,7 @@ export async function recomputeItemFields(item, overrides = {}) {
     if (item.type === "weapon") update["system.damage"] = base.damage;
     if (item.type === "armor") update["system.aac.value"] = base.ac;
     update["system.weight6"] = base.weight6;
+    if (base.cost != null) update["system.cost"] = base.cost;
     await item.update?.(update);
     if (stored) await item.unsetFlag?.(MODULE_ID, PRISTINE);
     return;
@@ -124,6 +132,10 @@ export async function recomputeItemFields(item, overrides = {}) {
   if (item.type === "weapon") update["system.damage"] = withFlatDelta(base.damage, d.damage);
   if (item.type === "armor") update["system.aac.value"] = Math.max(0, base.ac + d.ac);
   update["system.weight6"] = Math.max(0, base.weight6 + d.weight6);
+  // Price follows the layers: surcharge first, resale fraction second. Rounded
+  // to a hundredth so a 67% of 3gp reads 2.01, not a float tail.
+  const cost = (Number(base.cost ?? 0) + d.costAdd) * d.costMul;
+  update["system.cost"] = Math.round(cost * 100) / 100;
   if (!stored) update[`flags.${MODULE_ID}.${PRISTINE}`] = base;
   await item.update?.(update);
 }
@@ -140,6 +152,14 @@ export function layerSummary(item) {
   if (sc?.breaks) bits.push("breaks on a 1");
   if (sc?.cannotSneak) bits.push("cannot sneak");
   if (sc?.initiative) bits.push(`${sc.initiative} init`);
+  for (const n of sc?.notes ?? []) bits.push(n);
+  // Say what happened to the PRICE, since that is the whole point of a resale
+  // percentage and the number on the sheet otherwise looks unexplained.
+  const base = pristineOf(item);
+  if (d.costAdd || d.costMul !== 1) {
+    const priced = Math.round((Number(base.cost ?? 0) + d.costAdd) * d.costMul * 100) / 100;
+    bits.push(`${priced}gp (was ${base.cost ?? 0}gp)`);
+  }
   return bits.join(", ");
 }
 

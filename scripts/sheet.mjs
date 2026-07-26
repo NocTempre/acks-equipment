@@ -36,7 +36,7 @@ import {
   isSpellbook, spellbookSpells, pagesUsed, pagesCapacity,
   spellbookValue, setSpellbookSpells, parseSpellList, formatSpellList,
 } from "./spellbook.mjs";
-import { MATERIALS, setMaterial, materialOf } from "./overlays/item-loss.mjs";
+import { MATERIALS, MATERIALS_BY_DAMAGE_TYPE, setMaterial, materialOf } from "./overlays/item-loss.mjs";
 import { wearBuckets, wearLabel } from "./wear.mjs";
 import {
   containerReport,
@@ -605,12 +605,23 @@ function injectItemProperties(app, element) {
       });
       return b;
     };
+    // OUR CONTROLS LIVE INSIDE CORE'S <form>, and an ApplicationV2 sheet submits
+    // on change: an un-stopped change event bubbles to core's delegated handler,
+    // which re-renders the sheet from ITS form data — throwing away the write we
+    // were in the middle of making. (Symptom: picking a masterwork tier or a
+    // condition appeared to do nothing at all, because nothing persisted.) So
+    // every control's change is stopped here before it reaches the form.
+    const onChange = (node, handler) =>
+      node.addEventListener("change", (ev) => {
+        ev.stopPropagation();
+        guard(handler);
+      });
     /** A dropdown bucket — the default control for "which one is this?". */
     const select = (options, current, onPick) => {
       const s = el("select", "acks-equipment-props__select");
       s.innerHTML = options.map((o) => `<option value="${o.value}">${foundry.utils.escapeHTML?.(o.label) ?? o.label}</option>`).join("");
       s.value = current;
-      s.addEventListener("change", () => guard(() => onPick(s.value)));
+      onChange(s, () => onPick(s.value));
       return s;
     };
     /** An entry field that commits on change/blur. */
@@ -618,7 +629,7 @@ function injectItemProperties(app, element) {
       const i = el("input", "acks-equipment-props__input");
       i.type = type;
       i.value = value ?? "";
-      i.addEventListener("change", () => guard(() => onCommit(i.value)));
+      onChange(i, () => onCommit(i.value));
       return i;
     };
     /** Group several controls on one row. */
@@ -673,6 +684,15 @@ function injectItemProperties(app, element) {
       String(item.getFlag(MODULE_ID, ITEM_FLAGS.MATERIAL) ?? "auto").toLowerCase(),
       (v) => setMaterial(item, v),
     ));
+    // Material has no standing modifier — it decides WHICH damage types can
+    // destroy the item (JJ p398 item loss). Saying so stops it reading as a
+    // setting that silently does nothing.
+    const mat = materialOf(item);
+    const harms = Object.entries(MATERIALS_BY_DAMAGE_TYPE).filter(([, list]) => list.includes(mat)).map(([dt]) => dt);
+    row("", el("span", "acks-equipment-props__note",
+      harms.length
+        ? game.i18n.format("ACKS-EQUIPMENT.props.materialNote", { types: harms.join(", ") })
+        : game.i18n.localize("ACKS-EQUIPMENT.props.materialNoneNote")));
 
     if (item.type === "armor" && item.system?.type === "shield") {
       row("ACKS-EQUIPMENT.props.variant", select(
@@ -696,7 +716,7 @@ function injectItemProperties(app, element) {
       ta.rows = 5;
       ta.value = formatSpellList(spellbookSpells(item));
       ta.placeholder = game.i18n.localize("ACKS-EQUIPMENT.spellbook.prompt");
-      ta.addEventListener("change", () => guard(() => setSpellbookSpells(item, parseSpellList(ta.value))));
+      onChange(ta, () => setSpellbookSpells(item, parseSpellList(ta.value)));
       row("ACKS-EQUIPMENT.props.spellbook", ta);
       row("", el("span", "acks-equipment-props__note",
         `${pagesUsed(item)}/${pagesCapacity(item)} pages · ${spellbookValue(item)}gp`));
@@ -713,12 +733,19 @@ function injectItemProperties(app, element) {
         : item.type === "armor" ? field(draft.ac, (v) => { draft.ac = v; }, "number") : null;
       row("ACKS-EQUIPMENT.props.disguise", group(
         nameF, costF, ...(statF ? [statF] : []),
-        button(game.i18n.localize("ACKS-EQUIPMENT.disguise.apply"), "ACKS-EQUIPMENT.disguise.hint",
-          () => disguiseItem(item, { name: nameF.value, cost: costF.value, ...(item.type === "weapon" ? { damage: statF.value } : {}), ...(item.type === "armor" ? { ac: statF.value } : {}) }), "narrow"),
+        button(game.i18n.localize(d ? "ACKS-EQUIPMENT.disguise.update" : "ACKS-EQUIPMENT.disguise.apply"),
+          "ACKS-EQUIPMENT.disguise.hint",
+          () => disguiseItem(item, { name: nameF.value, cost: costF.value, ...(item.type === "weapon" ? { damage: statF.value } : {}), ...(item.type === "armor" ? { ac: statF.value } : {}) }),
+          d ? "narrow active" : "narrow"),
         ...(d ? [button(game.i18n.localize("ACKS-EQUIPMENT.disguise.reveal"), "ACKS-EQUIPMENT.disguise.activeHint", () => revealItem(item), "narrow")] : []),
       ));
-      if (d) row("", el("span", "acks-equipment-props__note acks-equipment-props__note--warn",
-        game.i18n.format("ACKS-EQUIPMENT.disguise.shown", { name: d.true?.name ?? "?" })));
+      // The state line is the ONLY way a GM can tell a disguise is on — the item
+      // deliberately looks mundane everywhere else — so it always says which it
+      // is, and names the truth waiting underneath.
+      row("", el("span", `acks-equipment-props__note${d ? " acks-equipment-props__note--warn" : ""}`,
+        d
+          ? game.i18n.format("ACKS-EQUIPMENT.disguise.shown", { name: d.true?.name ?? "?" })
+          : game.i18n.localize("ACKS-EQUIPMENT.disguise.off")));
     }
 
     form.appendChild(section);
