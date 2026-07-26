@@ -50,6 +50,123 @@ export const SCAVENGED_TABLES = Object.freeze({
 /** RAW caps: attack/AC penalties never worse than -5; damage never below 1. */
 export const SCAVENGED_CAPS = Object.freeze({ attack: -5, ac: -5, minDamage: 1 });
 
+/* -------------------------------------------------------------------------- */
+/*  The IMPORTED table (acks-content extraction → acks-lib ruledata registry)  */
+/* -------------------------------------------------------------------------- */
+
+/** Our table keys → the ruledata table ids acks-content extracts (RR p160). */
+export const RULEDATA_DOC = "equipment";
+export const RULEDATA_TABLES = Object.freeze({
+  piercingSlashing: "scavengedPiercingSlashing",
+  bludgeoning: "scavengedBludgeoning",
+  armourEquipment: "scavengedArmorEquipment",
+  vesselsVehicles: "scavengedVesselsVehicles",
+});
+
+/**
+ * The GM's OWN imported condition table for this key, or null.
+ *
+ * Read through acks-lib's ruledata registry, which is where acks-content lands
+ * the table it extracted from the reader's own book. No values ship here — this
+ * is the seat's own page — so when it is present it OUTRANKS the built-in table.
+ * @returns {object|null} rows keyed by d20 band max: {category, effect, value, min, max}
+ */
+export function importedTable(tableKey) {
+  const id = RULEDATA_TABLES[tableKey];
+  const reg = globalThis.acksLib?.tables;
+  if (!id || !reg?.hasDoc?.(RULEDATA_DOC)) return null;
+  try {
+    const t = reg.getTable(RULEDATA_DOC, id);
+    return t && Object.keys(t).length ? t : null;
+  } catch {
+    return null; // the doc exists but not this table
+  }
+}
+
+/** A signed integer captured by `re` from `text`, or 0. */
+const signed = (text, re) => {
+  const m = re.exec(text);
+  return m ? parseInt(m[1].replace(/^\+/, ""), 10) : 0;
+};
+
+/**
+ * Translate ONE imported row into the mechanical effects the module applies.
+ *
+ * The row carries the reader's own printed words ("-1 damage", "Breaks",
+ * "+1 stone encumbrance", "-33%"); this reads that small, fixed vocabulary into
+ * numbers. It is a parse of the page, not an interpretation of intent — an
+ * effect phrase it does not recognise is preserved verbatim as a note for the
+ * Judge rather than silently dropped.
+ */
+export function rowToEffects(row) {
+  const category = String(row?.category ?? "").trim();
+  const effect = String(row?.effect ?? "").trim();
+  const e = effect.toLowerCase();
+  const out = { label: category, damage: 0, attack: 0, initiative: 0, encumbrance: 0, ac: 0, breaks: false, cannotSneak: false, reroll: false, value: 1, notes: [] };
+  if (/roll\s+again/i.test(category)) return { ...out, reroll: true };
+
+  out.damage = signed(e, /([+-]?\d+)\s*damage/);
+  out.attack = signed(e, /([+-]?\d+)\s*to\s*attacks?/);
+  out.initiative = signed(e, /([+-]?\d+)\s*to\s*initiative/);
+  out.encumbrance = signed(e, /([+-]?\d+)\s*stone/);
+  // Small caps put "AC" into the text layer as "Ac" — match case-insensitively.
+  out.ac = signed(e, /([+-]?\d+)\s*a\s*c\b/);
+  out.breaks = /break/.test(e);
+  out.cannotSneak = /cannot\s+sneak/.test(e);
+  // Percentage of normal value: "100%" → 1, "-33%" → 0.67.
+  const v = /(-?\d+)\s*%/.exec(String(row?.value ?? ""));
+  if (v) {
+    const n = parseInt(v[1], 10);
+    out.value = n < 0 ? 1 + n / 100 : n / 100;
+  }
+  // Anything the vocabulary above did not claim (the vessel table's cargo,
+  // speed and structural-hp effects) rides along as a note.
+  if (effect && effect !== "-" && !out.damage && !out.attack && !out.initiative && !out.encumbrance && !out.ac && !out.breaks && !out.cannotSneak) {
+    out.notes.push(effect);
+  }
+  return out;
+}
+
+/** The imported row covering a d20 result, or null. */
+export function importedRow(tableKey, roll) {
+  const table = importedTable(tableKey);
+  if (!table) return null;
+  const rows = Object.values(table);
+  const reg = globalThis.acksLib?.tables;
+  const hit = reg?.bracketRow?.(rows, roll) ?? rows.find((r) => roll >= Number(r.min) && roll <= Number(r.max));
+  return hit ?? null;
+}
+
+/** Accumulate imported rows into one condition, mirroring `accumulate`. */
+export function accumulateImported(tableKey, rolls) {
+  const out = { labels: [], damage: 0, attack: 0, initiative: 0, encumbrance: 0, ac: 0, breaks: false, cannotSneak: false, notes: [], valueMultiplier: 1 };
+  for (const roll of rolls) {
+    const row = importedRow(tableKey, roll);
+    if (!row) continue;
+    const e = rowToEffects(row);
+    if (e.reroll) continue; // the reroll row itself contributes nothing
+    out.labels.push(e.label);
+    out.damage += e.damage;
+    out.attack += e.attack;
+    out.initiative += e.initiative;
+    out.encumbrance += e.encumbrance;
+    out.ac += e.ac;
+    out.breaks ||= e.breaks;
+    out.cannotSneak ||= e.cannotSneak;
+    out.notes.push(...e.notes);
+    out.valueMultiplier *= e.value;
+  }
+  out.attack = Math.max(SCAVENGED_CAPS.attack, out.attack);
+  out.ac = Math.max(SCAVENGED_CAPS.ac, out.ac);
+  return out;
+}
+
+/** Does an imported row at this d20 result call for two more rolls? */
+export function importedNeedsReroll(tableKey, roll) {
+  const row = importedRow(tableKey, roll);
+  return row ? /roll\s+again/i.test(String(row.category ?? "")) : false;
+}
+
 export function overlayEnabled() {
   return !!game.settings.get(MODULE_ID, SETTINGS.OVERLAY_SCAVENGED);
 }

@@ -1,4 +1,4 @@
-/* global game, ui, CONFIG */
+/* global game, ui, CONFIG, Roll */
 /**
  * Sheet-triggered equipment ACTIONS — the mutations the wear-bucket controls
  * invoke. Kept out of the render code (sheet.mjs) so each is unit-testable
@@ -8,7 +8,10 @@ import { MODULE_ID, ITEM_FLAGS } from "./constants.mjs";
 import { SHIELD_VARIANTS } from "./config.mjs";
 import { equipmentClass, classifyWeapon } from "./profiles.mjs";
 import { consumeItem, roundsOf } from "./ammo.mjs";
-import { tableFor, accumulate, needsReroll, SCAVENGED_TABLES } from "./overlays/scavenged.mjs";
+import {
+  tableFor, accumulate, needsReroll, SCAVENGED_TABLES,
+  importedTable, importedNeedsReroll, accumulateImported, importedRow, rowToEffects,
+} from "./overlays/scavenged.mjs";
 import { recomputeItemFields, withFlatDelta } from "./properties.mjs";
 
 function notify(key, data) {
@@ -192,36 +195,33 @@ export async function setScavenged(item, cond) {
   await item.setFlag?.(MODULE_ID, "scavenged", cond);
 }
 
-/** Set a scavenged condition from a single table row key (the inline picker). */
-export async function setScavengedRow(item, tableKey, rowIndex) {
-  const rows = SCAVENGED_TABLES[tableKey] ?? [];
-  const row = rows[rowIndex];
-  if (!row || row.reroll) return null;
-  const cond = accumulate(tableKey, [row.max]); // any roll landing on this row
-  await setScavenged(item, cond);
-  return cond;
+/**
+ * The rows a condition can be PICKED from, in d20 order — the reader's own
+ * imported table when present, else the built-in RAW one. Each option carries
+ * the band max, which is all `setScavengedRow` needs to resolve it either way.
+ * @returns {{value:number, label:string}[]}
+ */
+export function scavengedOptions(tableKey) {
+  const imported = importedTable(tableKey);
+  if (imported) {
+    return Object.values(imported)
+      .filter((r) => !/roll\s+again/i.test(String(r.category ?? "")))
+      .sort((a, b) => Number(a.max) - Number(b.max))
+      .map((r) => ({ value: Number(r.max), label: String(r.category ?? "").trim() }));
+  }
+  return (SCAVENGED_TABLES[tableKey] ?? [])
+    .filter((r) => !r.reroll)
+    .map((r) => ({ value: r.max, label: r.label }));
 }
 
-/**
- * Find the world RollTable holding a scavenged-condition table, if the GM has
- * imported one from their own book (acks-content's rules-table import). Matched
- * by a `ruledata` key flag first, then by name — so a hand-built table works too.
- * @returns {RollTable|null}
- */
-export function scavengedRollTable(tableKey) {
-  const wanted = `equipment.scavenged.${tableKey}`.toLowerCase();
-  const tables = globalThis.game?.tables;
-  if (!tables) return null;
-  const byFlag = tables.find?.(
-    (t) => String(t.getFlag?.("acks-location", "ruledata")?.key ?? t.getFlag?.("acks-content", "ruledata")?.key ?? "").toLowerCase() === wanted,
-  );
-  if (byFlag) return byFlag;
-  const NAME = {
-    piercingSlashing: /scaveng.*(pierc|slash|blade|weapon)/i,
-    bludgeoning: /scaveng.*(bludgeon|blunt)/i,
-    armourEquipment: /scaveng.*(armou?r|equipment)/i,
-  }[tableKey];
-  return (NAME && tables.find?.((t) => NAME.test(t.name ?? ""))) || null;
+/** Set a scavenged condition from a chosen row (its d20 band max). */
+export async function setScavengedRow(item, tableKey, bandMax) {
+  const n = Number(bandMax);
+  if (!Number.isFinite(n)) return null;
+  const cond = importedTable(tableKey) ? accumulateImported(tableKey, [n]) : accumulate(tableKey, [n]);
+  if (!cond.labels.length) return null;
+  await setScavenged(item, cond);
+  return cond;
 }
 
 /**
@@ -242,29 +242,33 @@ export async function scavengeItem(item, { roll } = {}) {
   const profile = item.type === "weapon" ? classifyWeapon(item) : null;
   const tableKey = tableFor(item, profile);
 
-  let rolls = [];
-  let table = null;
-  const imported = roll ? null : scavengedRollTable(tableKey);
-  if (imported?.draw) {
-    // Draw from the GM's own table, honouring its formula and posting its card.
-    table = imported.name;
-    const queue = [null];
-    let guard = 0;
-    while (queue.length && guard++ < 32) {
-      queue.shift();
-      const drawn = await imported.draw({ displayChat: true });
-      const n = Number(drawn?.roll?.total);
-      const v = Number.isFinite(n) ? n : rollD20();
-      rolls.push(v);
-      if (needsReroll(tableKey, v)) queue.push(null, null);
+  // THE READER'S OWN TABLE WINS. acks-content extracts RR p160 from the seat's
+  // PDF into the acks-lib ruledata registry; when it is there, the bands, the
+  // category names, the effects and the resale percentages all come from that
+  // page. The built-in RAW table is only the stand-in for a world that has not
+  // imported one, so the control works either way.
+  const useImported = !roll && !!importedTable(tableKey);
+  const rolls = [];
+  const queue = [0];
+  let guard = 0;
+  while (queue.length && guard++ < 32) {
+    queue.shift();
+    let v;
+    if (roll) v = roll();
+    else {
+      // A real d20 through Foundry's roller, so dice-so-nice and the roll log
+      // see it (the module's own d20 was invisible to both).
+      const r = await new Roll("1d20").evaluate();
+      v = r.total;
     }
-  } else {
-    rolls = rollScavengedD20s(tableKey, roll);
+    rolls.push(v);
+    const again = useImported ? importedNeedsReroll(tableKey, v) : needsReroll(tableKey, v);
+    if (again) queue.push(0, 0);
   }
 
-  const cond = accumulate(tableKey, rolls);
+  const cond = useImported ? accumulateImported(tableKey, rolls) : accumulate(tableKey, rolls);
   await setScavenged(item, cond);
-  return { rolls, tableKey, cond, table };
+  return { rolls, tableKey, cond, imported: useImported };
 }
 
 /* -------------------------------------------------------------------------- */

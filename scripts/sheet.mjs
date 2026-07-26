@@ -24,13 +24,13 @@ import { WEAR_ICONS, SHIELD_VARIANTS } from "./config.mjs";
 import { getLoadout, cycleGrip } from "./loadout.mjs";
 import {
   prepareTorch, rollUnarmed, setMasterwork, masterworkTiersFor, drawItem, sheatheItem,
-  scavengeItem, clearScavenged, setScavengedRow, setShieldVariant, SHIELD_VARIANT_KEYS,
+  scavengeItem, clearScavenged, setScavengedRow, scavengedOptions, setShieldVariant, SHIELD_VARIANT_KEYS,
   disguiseItem, revealItem,
 } from "./actions.mjs";
 import { masterworkTierOf, scavengedOf, layerSummary } from "./properties.mjs";
 import { classifyWeapon } from "./profiles.mjs";
 import { cycleStrap, strapOf, variantOf, overlayEnabled as shieldOverlayEnabled } from "./overlays/shield-variants.mjs";
-import { overlayEnabled as scavengedOverlayEnabled, tableFor, SCAVENGED_TABLES } from "./overlays/scavenged.mjs";
+import { overlayEnabled as scavengedOverlayEnabled, tableFor } from "./overlays/scavenged.mjs";
 import { helmetType, isHelmet } from "./overlays/enclosing-helm.mjs";
 import {
   isSpellbook, spellbookSpells, pagesUsed, pagesCapacity,
@@ -639,17 +639,19 @@ function injectItemProperties(app, element) {
       ));
 
       // CONDITION — pick a row of the applicable scavenged table directly, or
-      // roll it (preferring the GM's imported table). "Pristine" clears.
+      // roll it. Both read the reader's OWN imported table (RR p160, extracted
+      // by acks-content) when the world has one; the built-in RAW table is the
+      // fallback. "Pristine" clears.
       const profile = item.type === "weapon" ? classifyWeapon(item) : null;
       const tableKey = tableFor(item, profile);
-      const rows = SCAVENGED_TABLES[tableKey] ?? [];
+      const opts = scavengedOptions(tableKey);
       const sc = scavengedOf(item);
-      const curRow = sc?.labels?.length ? String(rows.findIndex((r) => r.label === sc.labels[0])) : "none";
+      const cur = sc?.labels?.length === 1 ? String(opts.find((o) => o.label === sc.labels[0])?.value ?? "none") : "none";
       const picker = select(
         [{ value: "none", label: game.i18n.localize("ACKS-EQUIPMENT.props.pristine") },
-          ...rows.map((r, i) => ({ value: String(i), label: r.label })).filter((o) => !rows[Number(o.value)].reroll)],
-        sc?.labels?.length > 1 ? "none" : curRow,
-        (v) => (v === "none" ? clearScavenged(item) : setScavengedRow(item, tableKey, Number(v))),
+          ...opts.map((o) => ({ value: String(o.value), label: o.label }))],
+        cur,
+        (v) => (v === "none" ? clearScavenged(item) : setScavengedRow(item, tableKey, v)),
       );
       // A stacked condition (a 19-20 reroll produced several) has no single row —
       // say so rather than showing one of them as if it were the whole story.

@@ -1415,6 +1415,49 @@ check("setShieldVariant standard clears the flag", shieldVar._flags.shieldVarian
 SETTINGS_STATE.overlayShieldVariants = false;
 
 /* ---------------------------------------------------------------------- */
+/*  The IMPORTED scavenged table (acks-content → acks-lib ruledata)        */
+/* ---------------------------------------------------------------------- */
+
+const { rowToEffects, importedTable, accumulateImported } = await import(new URL("overlays/scavenged.mjs", S));
+const { scavengedOptions } = await import(new URL("actions.mjs", S));
+
+// rowToEffects parses the READER'S OWN printed words into mechanics.
+const rte = (category, effect, value) => rowToEffects({ category, effect, value });
+check("imported row: '-1 damage' → damage -1, value 67%", (() => { const e = rte("Blade rusty", "-1 damage", "-33%"); return e.damage === -1 && Math.abs(e.value - 0.67) < 0.001; })());
+check("imported row: '-1 to attacks' → attack -1", rte("Off balance", "-1 to attacks", "-33%").attack === -1);
+check("imported row: '-1 to initiative' → initiative -1", rte("Loose hilt/haft", "-1 to initiative", "-33%").initiative === -1);
+check("imported row: '+1 stone encumbrance' → encumbrance +1", rte("Broken straps", "+1 stone encumbrance", "-33%").encumbrance === 1);
+check("imported row: 'cannot sneak' → cannotSneak", rte("Rattles if moved", "cannot sneak", "-33%").cannotSneak === true);
+check("imported row: small-caps '-1 Ac/ breaks' → ac -1 AND breaks", (() => { const e = rte("Dented/rotting", "-1 Ac/ breaks", "-33%"); return e.ac === -1 && e.breaks === true; })());
+check("imported row: 'Serviceable' at 100% → no effects, full value", (() => { const e = rte("Serviceable", "-", "100%"); return e.value === 1 && !e.damage && !e.breaks; })());
+check("imported row: 'Roll again twice' flags a reroll", rte("Roll again twice", "-", "-").reroll === true);
+check("imported row: an unrecognised effect is kept as a note (vessels)", rte("Faulty", "-30’ max speed", "-33%").notes[0] === "-30’ max speed");
+
+// With no acks-lib registry present the module falls back to the baked table.
+check("importedTable is null without the ruledata registry", importedTable("piercingSlashing") === null);
+check("scavengedOptions falls back to the built-in rows", scavengedOptions("piercingSlashing").length === 6);
+
+// A stub registry standing in for an imported RR p160 grid.
+globalThis.acksLib = {
+  tables: {
+    hasDoc: (d) => d === "equipment",
+    getTable: (d, t) => (d === "equipment" && t === "scavengedPiercingSlashing"
+      ? {
+          2: { category: "Serviceable", effect: "-", value: "100%", min: 1, max: 2 },
+          6: { category: "Blade dented", effect: "-1 damage", value: "-33%", min: 3, max: 6 },
+          20: { category: "Roll again twice", effect: "-", value: "-", min: 19, max: 20 },
+        }
+      : {}),
+    bracketRow: (rows, v) => rows.find((r) => v >= Number(r.min) && v <= Number(r.max)) ?? null,
+  },
+};
+check("importedTable resolves through the ruledata registry", !!importedTable("piercingSlashing"));
+check("scavengedOptions lists the IMPORTED categories (reroll row excluded)", (() => { const o = scavengedOptions("piercingSlashing"); return o.length === 2 && o[1].label === "Blade dented"; })());
+check("accumulateImported applies the imported row's mechanics", (() => { const c = accumulateImported("piercingSlashing", [4]); return c.damage === -1 && c.labels[0] === "Blade dented"; })());
+check("accumulateImported: the reroll row itself contributes nothing", accumulateImported("piercingSlashing", [19]).labels.length === 0);
+delete globalThis.acksLib;
+
+/* ---------------------------------------------------------------------- */
 /*  Enclosing helm (RR p140) — light/heavy detection                       */
 /* ---------------------------------------------------------------------- */
 

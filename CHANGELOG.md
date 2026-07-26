@@ -3,6 +3,22 @@
 Releases up to and including 0.15.1 predate this file; see the git history
 and GitHub releases for earlier changes.
 
+## 0.30.0
+
+- **The condition control now reads YOUR book's table.** acks-content 0.56.0
+  extracts RR p160's four scavenged grids into the ruledata registry; when that
+  import is present, both the **Roll** button and the condition **dropdown** use
+  it — your bands, your category names, your effects, your resale percentages —
+  and the effect text is parsed into the mechanics it applies (−1 damage, −1 to
+  attacks, +1 stone, cannot sneak, −1 AC, breaks). An effect phrase outside that
+  vocabulary (the vessel table's cargo/speed/hull entries) is preserved verbatim
+  as a note for the Judge rather than dropped. The built-in RAW table remains the
+  fallback for a world that has not imported one.
+- The roll goes through Foundry's own dice roller now, so the roll log and
+  dice-so-nice see it; 19–20 re-rolls are honoured against whichever table is in
+  play. The old world-RollTable lookup is gone — the ruledata registry is the one
+  source.
+
 ## 0.29.0
 
 - **Item properties are inline controls now — dropdowns, fields and buttons, not
