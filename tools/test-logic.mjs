@@ -1332,11 +1332,11 @@ const mockDoc = (type, sys = {}) => ({
 const mkWeapon = mockDoc("weapon", { bonus: 0, damage: "1d6", weight6: 6 });
 await setMasterwork(mkWeapon, "weaponBoth");
 check("masterwork +1/+1 stamps both bonus and damage", mkWeapon.system.bonus === 1 && /1d6 \+ 1/.test(mkWeapon.system.damage));
-check("masterwork records the tier + base for reversal", mkWeapon._flags.masterwork?.tier === "weaponBoth" && mkWeapon._flags.masterwork.base.damage === "1d6");
+check("masterwork records the tier; the baseline is the shared `pristine` flag", mkWeapon._flags.masterwork?.tier === "weaponBoth" && mkWeapon._flags.pristine?.damage === "1d6");
 await setMasterwork(mkWeapon, "weaponToHit");
 check("switching tiers restarts from base (never compounds the die)", mkWeapon.system.bonus === 1 && mkWeapon.system.damage === "1d6");
 await setMasterwork(mkWeapon, "none");
-check("masterwork None restores the base exactly and clears the flag", mkWeapon.system.bonus === 0 && mkWeapon.system.damage === "1d6" && mkWeapon._flags.masterwork === undefined);
+check("masterwork None restores the base exactly and clears both flags", mkWeapon.system.bonus === 0 && mkWeapon.system.damage === "1d6" && mkWeapon._flags.masterwork === undefined && mkWeapon._flags.pristine === undefined);
 
 const mkArmor = mockDoc("armor", { aac: 4, weight6: 30 });
 await setMasterwork(mkArmor, "armorLight");
@@ -1366,23 +1366,44 @@ const seq = (arr) => { let i = 0; return () => arr[i++]; };
 check("scavenge 19-20 expands into two more d20s", JSON.stringify(rollScavengedD20s("piercingSlashing", seq([19, 7, 15]))) === JSON.stringify([19, 7, 15]));
 check("scavenge single non-reroll result = one d20", JSON.stringify(rollScavengedD20s("piercingSlashing", () => 7)) === JSON.stringify([7]));
 
-// Scavenge stamps a condition onto a real-shaped weapon, reversibly.
+// Scavenge stamps a condition onto a real-shaped weapon, reversibly. Fields are
+// recomputed from ONE pristine baseline (properties.mjs), so the damage string
+// is normalised ("1d6 - 1") and the snapshot lives under `pristine`.
 const scWeapon = mockDoc("weapon", { name: "Sword", damage: "1d6", bonus: 0 });
 await scavengeItem(scWeapon, { roll: () => 7 }); // "Blade rusty" → -1 damage
-check("scavenge stamps -1 damage onto a weapon", scWeapon.system.damage === "1d6-1");
-check("scavenge records pristine base for reversal", scWeapon._flags.scavenged?.base?.damage === "1d6");
+check("scavenge stamps -1 damage onto a weapon", scWeapon.system.damage === "1d6 - 1");
+check("scavenge captures ONE pristine baseline", scWeapon._flags.pristine?.damage === "1d6");
 await clearScavenged(scWeapon);
-check("clearScavenged restores pristine damage + clears the flag", scWeapon.system.damage === "1d6" && scWeapon._flags.scavenged === undefined);
+check("clearScavenged restores pristine damage, clears both flags", scWeapon.system.damage === "1d6" && scWeapon._flags.scavenged === undefined && scWeapon._flags.pristine === undefined);
 
-// Re-rolling never compounds (restores base first).
+// Re-rolling never compounds (always recomputed from pristine).
 await scavengeItem(scWeapon, { roll: () => 7 });
 await scavengeItem(scWeapon, { roll: () => 3 }); // "Blade dented" → -1 damage (from pristine, not -2)
-check("re-scavenge starts from pristine (no compounding)", scWeapon.system.damage === "1d6-1");
+check("re-scavenge starts from pristine (no compounding)", scWeapon.system.damage === "1d6 - 1");
+await clearScavenged(scWeapon);
 
 // Armour scavenge: -1 AC + a break flag for the Judge.
 const scArmor = mockDoc("armor", { name: "Plate", aac: 6, weight6: 36, armorType: "heavy" });
 await scavengeItem(scArmor, { roll: () => 13 }); // "Dented/rotting" → -1 AC, breaks
 check("scavenge stamps -1 AC on armour + records break flag", scArmor.system.aac.value === 5 && scArmor._flags.scavenged?.breaks === true);
+
+/* --- LAYERING: masterwork + scavenged must coexist and unwind cleanly ----- */
+// This is the bug the single-baseline model fixes: two layers each snapshotting
+// their own "base" meant clearing one restored the other's delta as if pristine.
+const both = mockDoc("weapon", { name: "Sword", damage: "1d6", bonus: 0, weight6: 6 });
+await setMasterwork(both, "weaponBoth"); // +1 hit, +1 damage
+check("masterwork alone: +1 hit / 1d6 + 1", both.system.bonus === 1 && both.system.damage === "1d6 + 1");
+await scavengeItem(both, { roll: () => 7 }); // rusty: -1 damage
+check("masterwork + scavenged cancel numerically to 1d6 (not '1d6 + 1-1')", both.system.damage === "1d6" && both.system.bonus === 1);
+await clearScavenged(both);
+check("clearing the condition leaves masterwork intact", both.system.damage === "1d6 + 1" && both.system.bonus === 1);
+await scavengeItem(both, { roll: () => 11 }); // off balance: -1 attack
+check("scavenged attack penalty stacks onto the masterwork bonus (net 0)", both.system.bonus === 0);
+await setMasterwork(both, "none");
+check("clearing masterwork keeps the condition's -1 attack", both.system.bonus === -1 && !!both._flags.scavenged);
+await clearScavenged(both);
+check("clearing the LAST layer restores the item exactly + drops the baseline",
+  both.system.bonus === 0 && both.system.damage === "1d6" && both.system.weight6 === 6 && both._flags.pristine === undefined);
 
 // Shield variant: make any shield a buckler, and clear back to standard.
 const shieldVar = mockDoc("armor", { name: "Shield", aac: 1, armorType: "shield" });

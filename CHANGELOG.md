@@ -3,6 +3,33 @@
 Releases up to and including 0.15.1 predate this file; see the git history
 and GitHub releases for earlier changes.
 
+## 0.29.0
+
+- **Item properties are inline controls now — dropdowns, fields and buttons, not
+  pop-up dialogs.** Masterwork, condition, material, shield variant and helmet
+  type are **dropdowns** you change in place; the spell list is an editable
+  **text area**; the GM's apparent identity is a row of **entry fields** with
+  Apply / Reveal. Nothing opens a dialog any more. The duplicate masterwork /
+  condition / variant controls are gone from the character-sheet inventory rows —
+  those describe what an item *is*, so they live on the item sheet; the rows keep
+  grip, draw/sheathe, light and strap (how you are *using* it).
+- **Fix: properties did not fully apply or clear.** Masterwork and a scavenged
+  condition each stamped the same core fields *and each kept its own snapshot* of
+  "before" — so applying both and clearing either restored a baseline that still
+  contained the other's delta, leaving residue (a "Pristine" item still reading
+  1d6-1) or silently dropping the surviving layer. There is now **one** pristine
+  baseline per item and every change **recomputes** all layers from it. Damage
+  modifiers combine numerically: a +1 masterwork and a −1 dent read `1d6`, not
+  `1d6 + 1-1`. Clearing the last layer restores the item exactly and drops the
+  baseline.
+- **The condition roll uses your imported table when you have one.** If a
+  scavenged-condition RollTable has been imported from your own book (matched by
+  its ruledata key, or by name), the roller **draws from that table** — its
+  formula, its rows, its chat card — and maps the result back to the mechanical
+  effect. The built-in RAW table is only the fallback for a world that has not
+  imported one, so the control always works. 19–20 re-rolls are honoured either
+  way, and the condition can also just be **picked** from the dropdown.
+
 ## 0.28.1
 
 - **A spell book is a recognised item, not a toggle.** Dropped the "make any item

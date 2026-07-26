@@ -212,7 +212,8 @@
       "variant": "Shield variant",
       "helm": "Helmet",
       "spellbook": "Spell book",
-      "disguise": "Apparent identity (GM)"
+      "disguise": "Apparent identity (GM)",
+      "net": "Net effect"
     },
     "helm": {
       "light": "Light",
