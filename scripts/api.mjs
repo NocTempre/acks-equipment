@@ -18,7 +18,7 @@ import { consumeForAttack, recoverThrown, isThrownAway, consumeItem } from "./am
 import { prepareTorch, rollUnarmed, unarmedStrikeData, setMasterwork, masterworkTiersFor, drawItem, sheatheItem, scavengeItem, clearScavenged, setShieldVariant, SHIELD_VARIANT_KEYS, disguiseItem, revealItem, isDisguised } from "./actions.mjs";
 import { cycleStrap, strapOf, canStrap } from "./overlays/shield-variants.mjs";
 import { helmetType, isEnclosingHelm, enclosingHelmActive, HELM_MODIFIERS } from "./overlays/enclosing-helm.mjs";
-import { isSpellbook, makeSpellbook, spellbookValue, pagesUsed, pagesCapacity, spellbookSpells, setSpellbookSpells } from "./spellbook.mjs";
+import { isSpellbook, spellbookValue, pagesUsed, pagesCapacity, spellbookSpells, setSpellbookSpells } from "./spellbook.mjs";
 import {
   containerReport,
   contentsOf,
@@ -144,7 +144,6 @@ export function buildApi() {
     setMaterial,
     MATERIALS,
     isSpellbook,
-    makeSpellbook,
     spellbookValue,
     pagesUsed,
     pagesCapacity,

@@ -31,7 +31,7 @@ import { cycleStrap, strapOf, variantOf, overlayEnabled as shieldOverlayEnabled 
 import { overlayEnabled as scavengedOverlayEnabled } from "./overlays/scavenged.mjs";
 import { helmetType, isHelmet } from "./overlays/enclosing-helm.mjs";
 import {
-  isSpellbook, makeSpellbook, unmakeSpellbook, spellbookSpells, pagesUsed, pagesCapacity,
+  isSpellbook, spellbookSpells, pagesUsed, pagesCapacity,
   spellbookValue, setSpellbookSpells, parseSpellList, formatSpellList,
 } from "./spellbook.mjs";
 import { MATERIALS, setMaterial, materialOf } from "./overlays/item-loss.mjs";
@@ -485,12 +485,10 @@ async function openSpellbookDialog(item) {
         default: true,
         callback: (event, button) => new foundry.applications.ux.FormDataExtended(button.form).object,
       },
-      { action: "unmake", label: game.i18n.localize("ACKS-EQUIPMENT.spellbook.unmake") },
       { action: "cancel", label: game.i18n.localize("Cancel") },
     ],
     rejectClose: false,
   }).catch(() => null);
-  if (result === "unmake") return unmakeSpellbook(item);
   if (result && typeof result === "object") await setSpellbookSpells(item, parseSpellList(result.spells));
 }
 
@@ -816,12 +814,12 @@ function injectItemProperties(app, element) {
         t === "heavy" ? "ACKS-EQUIPMENT.helm.heavyHint" : "ACKS-EQUIPMENT.helm.cycle",
         () => item.setFlag(MODULE_ID, ITEM_FLAGS.HELMET, t === "heavy" ? "light" : "heavy"), `acks-equipment-helm--${t}`));
     }
-    if (item.type === "item") {
-      const book = isSpellbook(item);
+    // A spell book is a RECOGNISED item (the RR "Spell Book"), so the manager
+    // shows only ON one — never a "make any item a spell book" toggle.
+    if (isSpellbook(item)) {
       row("ACKS-EQUIPMENT.props.spellbook", button(
-        book ? `${pagesUsed(item)}/${pagesCapacity(item)}pg · ${spellbookValue(item)}gp` : game.i18n.localize("ACKS-EQUIPMENT.spellbook.make"),
-        book ? "ACKS-EQUIPMENT.spellbook.manageHint" : "ACKS-EQUIPMENT.spellbook.makeHint",
-        () => (book ? openSpellbookDialog(item) : makeSpellbook(item)), book ? "active" : ""));
+        `${pagesUsed(item)}/${pagesCapacity(item)}pg · ${spellbookValue(item)}gp`,
+        "ACKS-EQUIPMENT.spellbook.manageHint", () => openSpellbookDialog(item), "active"));
     }
     if (game.user?.isGM) {
       const on = isDisguised(item);

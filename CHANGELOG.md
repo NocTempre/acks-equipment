@@ -3,6 +3,14 @@
 Releases up to and including 0.15.1 predate this file; see the git history
 and GitHub releases for earlier changes.
 
+## 0.28.1
+
+- **A spell book is a recognised item, not a toggle.** Dropped the "make any item
+  a spell book" control from 0.28.0 — a spell book is now the recognised RR "Spell
+  Book" item (matched by name, or by an already-stored spell list so a renamed
+  book keeps its identity), and only such an item shows the page/value/spell-list
+  manager. Ordinary gear no longer offers to become one.
+
 ## 0.28.0
 
 - **Item properties now live on the item's OWN sheet.** A new **ACKS Properties**

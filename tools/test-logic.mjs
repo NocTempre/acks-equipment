@@ -70,7 +70,7 @@ const { readiedWeaponData, prepareTorch, unarmedStrikeData, masterworkTiersFor, 
 const { cycleStrap, strapOf } = await import(new URL("overlays/shield-variants.mjs", S));
 const { disguiseItem, revealItem, isDisguised } = await import(new URL("actions.mjs", S));
 const { helmetType, isEnclosingHelm } = await import(new URL("overlays/enclosing-helm.mjs", S));
-const { makeSpellbook, isSpellbook, pagesUsed, spellbookValue, parseSpellList, setSpellbookSpells, overCapacity: bookOver } = await import(new URL("spellbook.mjs", S));
+const { isSpellbook, pagesUsed, spellbookValue, parseSpellList, setSpellbookSpells, overCapacity: bookOver } = await import(new URL("spellbook.mjs", S));
 const { setMaterial, MATERIALS } = await import(new URL("overlays/item-loss.mjs", S));
 
 const weapon = (name, over = {}) => ({
@@ -1412,15 +1412,22 @@ check("parseSpellList reads name + trailing level in three shapes", (() => {
   const p = parseSpellList("Fireball, 3\nMagic Missile 1\nShield (1)");
   return p.length === 3 && p[0].name === "Fireball" && p[0].lvl === 3 && p[1].name === "Magic Missile" && p[1].lvl === 1 && p[2].name === "Shield" && p[2].lvl === 1;
 })());
-const book = mockDoc("item", { name: "Grimoire", weight6: 0, cost: 0 });
-await makeSpellbook(book);
-check("makeSpellbook flags it + sets ½ stone + 20gp blank", isSpellbook(book) && book.system.weight6 === 3 && book.system.cost === 20);
+// A spell book is a RECOGNISED item class (the RR "Spell Book"), not a toggle
+// switched on for arbitrary gear.
+check("isSpellbook recognises the RR Spell Book / grimoire by name", isSpellbook(mockDoc("item", { name: "Spell Book" })) && isSpellbook(mockDoc("item", { name: "Grimoire" })));
+check("isSpellbook is false for ordinary gear and for non-items", !isSpellbook(mockDoc("item", { name: "Backpack" })) && !isSpellbook(mockDoc("weapon", { name: "Spell Book" })));
+const book = mockDoc("item", { name: "Spell Book" });
 await setSpellbookSpells(book, [{ name: "A", lvl: 1 }, { name: "B", lvl: 3 }]);
 check("spellbook pages used = sum of levels (1+3)", pagesUsed(book) === 4);
 check("spellbook value = 20 + 1000×(1+3)", spellbookValue(book) === 4020);
 check("spellbook under 100 pages is not over capacity", !bookOver(book));
 await setSpellbookSpells(book, Array.from({ length: 20 }, (_, i) => ({ name: `S${i}`, lvl: 6 })));
 check("spellbook over 100 pages flags over capacity (120 > 100)", bookOver(book));
+// A stored spell list keeps a renamed book recognised (identity survives rename).
+const renamed = mockDoc("item", { name: "Old Tome" });
+check("a non-matching name is not a spell book yet", !isSpellbook(renamed));
+await setSpellbookSpells(renamed, [{ name: "X", lvl: 2 }]);
+check("a stored spell list keeps a renamed book recognised", isSpellbook(renamed));
 
 /* ---------------------------------------------------------------------- */
 /*  Material picker + apparent-value disguise (GM tool)                    */

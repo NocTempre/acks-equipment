@@ -1,33 +1,45 @@
 /* global game, ui */
 /**
- * Spellbooks — RR p. 145 (the item) and p. 390 (value of a scribed spell).
+ * Spell books — RR p. 145 (the item) and p. 390 (value of a scribed spell).
  *
- * A spell book is a special container that records spell FORMULAE, not gear. RAW:
- * a grimoire has 100 pages; each spell takes one page per spell level; the book
- * counts as 1/2 stone (three items) whatever it holds; a blank book costs 20gp.
+ * A spell book is a RECOGNISED item class, not a property switched on for
+ * arbitrary gear: the RR "Spell Book" (which acks-content generates from the
+ * equipment list) IS the spell book, and only it carries the page/value model.
+ * Recognition is by name, or by an already-stored spell list so a configured
+ * book keeps its identity even if renamed.
  *
- * Because a captured book's spells are NOT the finder's known repertoire, the
- * spell list is stored as DATA on the book (name + level) rather than by linking
- * the actor's own spell documents — so the list travels with the book when it is
- * looted, and appears on nobody's Spells tab until it is actually learned.
+ * RAW: a grimoire has 100 pages; each spell takes one page per spell level; the
+ * book counts as 1/2 stone whatever it holds; a blank book costs 20gp. Its spells
+ * are stored as DATA on the book (name + level) rather than by linking the
+ * finder's own spell documents — so a looted book's formulae travel with it and
+ * appear on nobody's Spells tab until they are actually learned.
  *
  * Value follows the Magic Research material cost (RR p390): 1,000gp per spell
- * level. So a book's worth is the blank cost plus 1,000gp × the level of every
- * spell scribed in it.
+ * level. A book's worth is the blank cost plus 1,000gp × the level of every spell
+ * scribed in it.
  */
 import { MODULE_ID, ITEM_FLAGS } from "./constants.mjs";
 
 export const SPELLBOOK_PAGES = 100; // RR p145
 export const SPELL_VALUE_PER_LEVEL = 1000; // RR p390 (Material Cost)
 export const BLANK_SPELLBOOK_VALUE = 20; // RR p145
-export const SPELLBOOK_WEIGHT6 = 3; // 1/2 stone
 
-/** The spellbook record on an item, or null. */
+/** Names that read as a spell book — the RR canonical item plus a common synonym. */
+export const SPELLBOOK_NAME = /\bspell\s*book\b|\bgrimoire\b/i;
+
+/** The spell-list record on a book, or null. */
 export function spellbookOf(item) {
   return item?.getFlag?.(MODULE_ID, ITEM_FLAGS.SPELLBOOK) ?? null;
 }
+
+/**
+ * Is this item a spell book? A recognised class — the RR "Spell Book" — by name,
+ * or by an already-stored spell list (a configured book keeps its identity if
+ * renamed). Never true for a weapon, a backpack, or ordinary gear.
+ */
 export function isSpellbook(item) {
-  return !!spellbookOf(item);
+  if (item?.type !== "item") return false;
+  return SPELLBOOK_NAME.test(item.name ?? "") || !!spellbookOf(item);
 }
 
 /** The spells recorded in the book: [{name, lvl}], always an array. */
@@ -79,24 +91,7 @@ export function formatSpellList(spells) {
   return (spells ?? []).map((sp) => `${sp.name}, ${sp.lvl}`).join("\n");
 }
 
-/** Flag an item as a spellbook (RR: 100 pages, 1/2 stone, 20gp blank). */
-export async function makeSpellbook(item, pages = SPELLBOOK_PAGES) {
-  if (!item) return;
-  const update = {};
-  // A spell book weighs 1/2 stone and a blank one is worth 20gp — set them if the
-  // item does not already carry sensible values (never clobber a deliberate one).
-  if (!Number(item.system?.weight6 ?? 0)) update["system.weight6"] = SPELLBOOK_WEIGHT6;
-  if (!Number(item.system?.cost ?? 0)) update["system.cost"] = BLANK_SPELLBOOK_VALUE;
-  if (Object.keys(update).length) await item.update?.(update);
-  await item.setFlag?.(MODULE_ID, ITEM_FLAGS.SPELLBOOK, { pages, spells: spellbookSpells(item) });
-}
-
-/** Stop treating an item as a spellbook (leaves cost/weight as-is). */
-export async function unmakeSpellbook(item) {
-  await item?.unsetFlag?.(MODULE_ID, ITEM_FLAGS.SPELLBOOK);
-}
-
-/** Replace the book's spell list (validated to {name, lvl}). */
+/** Replace a book's spell list (validated to {name, lvl}); warns if over pages. */
 export async function setSpellbookSpells(item, spells) {
   const rec = spellbookOf(item) ?? { pages: SPELLBOOK_PAGES };
   const clean = (spells ?? [])
