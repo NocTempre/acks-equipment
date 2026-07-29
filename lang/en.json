@@ -278,7 +278,10 @@
       "bonusLine": "Unlocked: {bonuses}",
       "noBonuses": "No bonuses apply yet",
       "noLadder": "No unlock ladder set — the Judge chooses the order (fields below): hit, damage, ac, encumbrance, power.",
-      "overlayOff": "Level-up advancement is OFF — enable “Overlay: named magic items (JJ)” in settings to automate it."
+      "overlayOff": "Level-up advancement is OFF — enable “Overlay: named magic items (JJ)” in settings to automate it.",
+      "rename": "Re-name",
+      "renameHint": "Give it a name…",
+      "renamed": "The item is now called “{item}” — one of its powers stirs."
     }
   },
   "ACKS-EQUIPMENT.container.expand": "Show contents",

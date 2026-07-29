@@ -3,6 +3,26 @@
 Releases up to and including 0.15.1 predate this file; see the git history
 and GitHub releases for earlier changes.
 
+## 0.34.0
+
+- **Re-naming works from the sheet, and never depends on the overlay setting.**
+  The JJ p399 re-naming path — a finder gives the item a new name, unlocking its
+  first power — had no sheet control, and the macro that carried it refused to
+  run with the named-item overlay off, which made renaming impossible. The named
+  strip now has a **Re-name** field and button (owner or GM); the overlay setting
+  gates only the level-up automation, as it should.
+- **A disguise hides named status from players.** The signature badge on a
+  disguised item told every player it was something special. Players now see no
+  named badge (or tracker) while an apparent identity is active; the GM sees
+  both. The visibility rule is a single tested function.
+- **Macro doctrine: macros are for scripts, not for driving game features.** The
+  *Named Arms & Armour* and *Draw/Sheathe* macros are retired — the item sheet's
+  header tracker and the inventory rows' draw/sheathe controls are the primary
+  interface. Script-like macros stay (Annotate Equipment, Containers annotate,
+  Loadout Inspector report, Item Loss resolver, Recover Thrown, Configure
+  Proficiencies — the latter three are flagged to move into proper sheet UI in a
+  later pass).
+
 ## 0.33.0
 
 **The named-item tracker is now findable and is an actual tracker.**

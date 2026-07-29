@@ -195,11 +195,13 @@ export function createEquipmentItemSheet(Base) {
       };
       const toggleStrip = (key) => setOpen(this.#openStrip === key ? null : key);
 
-      // NAMED (JJ p399). A NAMED item always shows its tracker — the record is
-      // on the item, and hiding it is how "where's the named item tracker?"
-      // happens. The overlay setting gates the AUTOMATION (level-up advancement)
-      // and whether a GM is offered the badge on ordinary, unnamed gear.
-      if (named.isNamed(item) || (named.overlayEnabled() && game.user.isGM)) {
+      // NAMED (JJ p399). A NAMED item shows its tracker — the record is on the
+      // item, and hiding it is how "where's the named item tracker?" happens.
+      // The overlay setting gates the AUTOMATION (level-up advancement) and
+      // whether a GM is offered the badge on ordinary, unnamed gear. A DISGUISE
+      // outranks all of it for players: an apparent identity must not wear a
+      // "named item" badge (named.trackerVisible owns the rule).
+      if (named.trackerVisible({ isNamed: named.isNamed(item), disguised: isDisguised(item), isGM: game.user.isGM, overlayOn: named.overlayEnabled() })) {
         const strip = this.#buildNamedStrip(item);
         strip.dataset.strip = "named";
         strips.append(strip);
@@ -342,6 +344,22 @@ export function createEquipmentItemSheet(Base) {
             ui.notifications.info(game.i18n.format("ACKS-EQUIPMENT.named.wrong", { name: speaker.name }));
           }
         }));
+
+        // RE-NAME — the other JJ p399 path: a finder gives the item a NEW name,
+        // unlocking a first point immediately; the item is thereafter called by
+        // that name. A state edit, not automation, so it is NEVER gated on the
+        // overlay setting (which used to make renaming impossible when off).
+        if (game.user.isGM || item.isOwner) {
+          const renameF = this.#stripField(rec.givenName ?? item.name, "ACKS-EQUIPMENT.named.renameHint");
+          strip.append(renameF, this.#stripButton("ACKS-EQUIPMENT.named.rename", async () => {
+            const given = renameF.value.trim();
+            if (!given) return;
+            const wielderLevel = Number((item.parent ?? game.user.character)?.system?.details?.level ?? 1);
+            await item.update(named.renameUpdates(item, given, wielderLevel));
+            await item.update(named.applyUpdates(item));
+            ui.notifications.info(game.i18n.format("ACKS-EQUIPMENT.named.renamed", { item: given }));
+          }));
+        }
       }
 
       // GM: set or edit the record — true name, the Judge's unlock ladder, and

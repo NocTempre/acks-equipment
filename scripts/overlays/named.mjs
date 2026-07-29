@@ -38,6 +38,22 @@ export function overlayEnabled() {
   return !!game.settings.get(MODULE_ID, SETTINGS.OVERLAY_NAMED);
 }
 
+/**
+ * Should this viewer see the named-item badge/tracker?
+ *
+ * - A NAMED item shows its tracker (state on the item is always visible) —
+ *   EXCEPT to a non-GM while the item wears an apparent identity: a disguise
+ *   must hide that the item is anything special, and a "named" badge on a
+ *   rusty sword gives the game away.
+ * - A GM additionally gets the badge on unnamed gear (to name it) while the
+ *   overlay is enabled.
+ * Pure on its inputs so the rule is testable offline.
+ */
+export function trackerVisible({ isNamed: namedItem, disguised, isGM, overlayOn }) {
+  if (namedItem) return isGM || !disguised;
+  return !!(overlayOn && isGM);
+}
+
 /** The named-item record on an item, or null. */
 export function namedOf(item) {
   return item?.getFlag?.(MODULE_ID, ITEM_FLAGS.NAMED) ?? null;

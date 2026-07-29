@@ -1491,6 +1491,21 @@ check("legacy record: no bonuses apply without a ladder", Object.values(namedMod
 // Revealed → full power on a ladder record.
 check("revealed ladder record displays full", namedMod.unlockedDisplay(namedDoc({ ...ladderRec, revealed: true })) === 3);
 
+/* --- Tracker visibility: disguise hides named status from players ------- */
+const tv = namedMod.trackerVisible;
+check("named + undisguised: visible to players", tv({ isNamed: true, disguised: false, isGM: false, overlayOn: false }) === true);
+check("named + DISGUISED: hidden from players", tv({ isNamed: true, disguised: true, isGM: false, overlayOn: true }) === false);
+check("named + disguised: GM still sees it", tv({ isNamed: true, disguised: true, isGM: true, overlayOn: false }) === true);
+check("unnamed: GM offered the badge only with the overlay on", tv({ isNamed: false, disguised: false, isGM: true, overlayOn: true }) === true && tv({ isNamed: false, disguised: false, isGM: true, overlayOn: false }) === false);
+check("unnamed: players never see a badge", tv({ isNamed: false, disguised: false, isGM: false, overlayOn: true }) === false);
+
+/* --- Re-name (JJ p399): a state edit, never overlay-gated ---------------- */
+const rn = namedMod.renameUpdates(namedDoc(ladderRec), "Doom of Giants", 4);
+check("rename sets the document name and givenName", rn.name === "Doom of Giants" && rn["flags.acks-equipment.named.givenName"] === "Doom of Giants");
+check("rename guarantees at least one unlocked rung", rn["flags.acks-equipment.named.unlocked"] >= 1);
+const fresh = namedMod.renameUpdates(namedDoc({ trueName: "X" }), "New Name", 2);
+check("first naming captures the mundane base", !!fresh["flags.acks-equipment.named.base"]);
+
 /* ---------------------------------------------------------------------- */
 /*  Enclosing helm (RR p140) — light/heavy detection                       */
 /* ---------------------------------------------------------------------- */
