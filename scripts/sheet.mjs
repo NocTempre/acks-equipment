@@ -25,17 +25,12 @@ import { getLoadout, cycleGrip } from "./loadout.mjs";
 import {
   prepareTorch, rollUnarmed, setMasterwork, masterworkTiersFor, drawItem, sheatheItem,
   scavengeItem, clearScavenged, setScavengedRow, scavengedOptions, setShieldVariant, SHIELD_VARIANT_KEYS,
-  disguiseItem, revealItem,
 } from "./actions.mjs";
 import { masterworkTierOf, scavengedOf, layerSummary } from "./properties.mjs";
 import { classifyWeapon } from "./profiles.mjs";
 import { cycleStrap, strapOf, variantOf, overlayEnabled as shieldOverlayEnabled } from "./overlays/shield-variants.mjs";
 import { overlayEnabled as scavengedOverlayEnabled, tableFor } from "./overlays/scavenged.mjs";
 import { helmetType, isHelmet } from "./overlays/enclosing-helm.mjs";
-import {
-  isSpellbook, spellbookSpells, pagesUsed, pagesCapacity,
-  spellbookValue, setSpellbookSpells, parseSpellList, formatSpellList,
-} from "./spellbook.mjs";
 import { MATERIALS, MATERIALS_BY_DAMAGE_TYPE, setMaterial, materialOf } from "./overlays/item-loss.mjs";
 import { wearBuckets, wearLabel } from "./wear.mjs";
 import {
@@ -571,187 +566,122 @@ function regroup(actor, tab) {
 }
 
 /**
- * The "ACKS Properties" panel on an ITEM's own sheet — the home for everything
- * that describes WHAT an item is (as opposed to how a character is using it,
- * which lives on the inventory rows). One place to set masterwork, a scavenged
- * condition, material, a shield variant, a helmet's weight, a spellbook, or a GM
- * apparent-identity — on any weapon, armour, or item, whether or not it is on an
- * actor. Reuses the same dialogs the inventory-row controls use.
+ * Build the CONSTRUCTION panel for an item — what the item IS: masterwork, the
+ * scavenged condition, material, a shield's variant, a helmet's weight, plus the
+ * net-effect line. Exported for the equipment item sheet, which mounts it on its
+ * own Construction tab (item-sheet.mjs). The spell book (a specific item class
+ * with its own Spells tab) and the identity overlays (header badges) do NOT live
+ * here.
  */
-function injectItemProperties(app, element) {
-  try {
-    const item = app?.item ?? app?.document;
-    if (item?.documentName !== "Item" || !["weapon", "armor", "item"].includes(item.type)) return;
-    const form = element?.querySelector?.("form") ?? element;
-    if (!form || form.querySelector(".acks-equipment-props")) return;
+export function buildConstructionPanel(item) {
+  const section = el("section", "acks-equipment-props");
+  const row = (labelKey, control) => {
+    const g = el("div", "acks-equipment-props__row");
+    g.append(el("label", "acks-equipment-props__label", labelKey ? game.i18n.localize(labelKey) : ""), control);
+    section.append(g);
+  };
+  const guard = (fn) => Promise.resolve(fn()).catch((e) => console.error(`${MODULE_ID} | item property`, e));
+  /** A small inline button (an ACTION — rolling, applying). */
+  const button = (text, tooltipKey, onClick, extraClass = "") => {
+    const b = el("button", `acks-equipment-props__btn ${extraClass}`.trim(), text);
+    b.type = "button";
+    if (tooltipKey) b.dataset.tooltip = game.i18n.localize(tooltipKey);
+    b.addEventListener("click", (ev) => {
+      ev.preventDefault();
+      ev.stopPropagation();
+      guard(onClick);
+    });
+    return b;
+  };
+  // OUR CONTROLS LIVE INSIDE CORE'S <form>, and an ApplicationV2 sheet submits
+  // on change: an un-stopped change event bubbles to core's delegated handler,
+  // which re-renders the sheet from ITS form data — throwing away the write we
+  // were in the middle of making. So every control's change is stopped here
+  // before it reaches the form.
+  const onChange = (node, handler) =>
+    node.addEventListener("change", (ev) => {
+      ev.stopPropagation();
+      guard(handler);
+    });
+  /** A dropdown bucket — the default control for "which one is this?". */
+  const select = (options, current, onPick) => {
+    const s = el("select", "acks-equipment-props__select");
+    s.innerHTML = options.map((o) => `<option value="${o.value}">${foundry.utils.escapeHTML?.(o.label) ?? o.label}</option>`).join("");
+    s.value = current;
+    onChange(s, () => onPick(s.value));
+    return s;
+  };
 
-    const section = el("section", "acks-equipment-props");
-    section.append(el("h3", "acks-equipment-props__title", game.i18n.localize("ACKS-EQUIPMENT.props.section")));
-    const row = (labelKey, control) => {
-      const g = el("div", "acks-equipment-props__row");
-      g.append(el("label", "acks-equipment-props__label", game.i18n.localize(labelKey)), control);
-      section.append(g);
-    };
-    const guard = (fn) => Promise.resolve(fn()).catch((e) => console.error(`${MODULE_ID} | item property`, e));
-    /** A small inline button (an ACTION — rolling, applying, revealing). */
-    const button = (text, tooltipKey, onClick, extraClass = "") => {
-      const b = el("button", `acks-equipment-props__btn ${extraClass}`.trim(), text);
-      b.type = "button";
-      if (tooltipKey) b.dataset.tooltip = game.i18n.localize(tooltipKey);
-      b.addEventListener("click", (ev) => {
-        ev.preventDefault();
-        ev.stopPropagation();
-        guard(onClick);
-      });
-      return b;
-    };
-    // OUR CONTROLS LIVE INSIDE CORE'S <form>, and an ApplicationV2 sheet submits
-    // on change: an un-stopped change event bubbles to core's delegated handler,
-    // which re-renders the sheet from ITS form data — throwing away the write we
-    // were in the middle of making. (Symptom: picking a masterwork tier or a
-    // condition appeared to do nothing at all, because nothing persisted.) So
-    // every control's change is stopped here before it reaches the form.
-    const onChange = (node, handler) =>
-      node.addEventListener("change", (ev) => {
-        ev.stopPropagation();
-        guard(handler);
-      });
-    /** A dropdown bucket — the default control for "which one is this?". */
-    const select = (options, current, onPick) => {
-      const s = el("select", "acks-equipment-props__select");
-      s.innerHTML = options.map((o) => `<option value="${o.value}">${foundry.utils.escapeHTML?.(o.label) ?? o.label}</option>`).join("");
-      s.value = current;
-      onChange(s, () => onPick(s.value));
-      return s;
-    };
-    /** An entry field that commits on change/blur. */
-    const field = (value, onCommit, type = "text") => {
-      const i = el("input", "acks-equipment-props__input");
-      i.type = type;
-      i.value = value ?? "";
-      onChange(i, () => onCommit(i.value));
-      return i;
-    };
-    /** Group several controls on one row. */
-    const group = (...nodes) => {
-      const g = el("div", "acks-equipment-props__group");
-      g.append(...nodes);
-      return g;
-    };
-
-    if (item.type === "weapon" || item.type === "armor") {
-      // MASTERWORK — a bucket of the RR p159 tiers.
-      const tier = masterworkTierOf(item) ?? "none";
-      row("ACKS-EQUIPMENT.props.masterwork", select(
-        [{ value: "none", label: game.i18n.localize("ACKS-EQUIPMENT.masterwork.none") },
-          ...masterworkTiersFor(item.type).map((t) => ({ value: t, label: game.i18n.localize(`ACKS-EQUIPMENT.masterwork.${t}`) }))],
-        tier,
-        (v) => setMasterwork(item, v),
-      ));
-
-      // CONDITION — pick a row of the applicable scavenged table directly, or
-      // roll it. Both read the reader's OWN imported table (RR p160, extracted
-      // by acks-content) when the world has one; the built-in RAW table is the
-      // fallback. "Pristine" clears.
-      const profile = item.type === "weapon" ? classifyWeapon(item) : null;
-      const tableKey = tableFor(item, profile);
-      const opts = scavengedOptions(tableKey);
-      const sc = scavengedOf(item);
-      const cur = sc?.labels?.length === 1 ? String(opts.find((o) => o.label === sc.labels[0])?.value ?? "none") : "none";
-      const picker = select(
-        [{ value: "none", label: game.i18n.localize("ACKS-EQUIPMENT.props.pristine") },
-          ...opts.map((o) => ({ value: String(o.value), label: o.label }))],
-        cur,
-        (v) => (v === "none" ? clearScavenged(item) : setScavengedRow(item, tableKey, v)),
-      );
-      // A stacked condition (a 19-20 reroll produced several) has no single row —
-      // say so rather than showing one of them as if it were the whole story.
-      if (sc?.labels?.length > 1) picker.dataset.tooltip = sc.labels.join("; ");
-      row("ACKS-EQUIPMENT.props.condition", group(
-        picker,
-        button(game.i18n.localize("ACKS-EQUIPMENT.action.scavengeRoll"), "ACKS-EQUIPMENT.action.scavengeHint",
-          async () => { const r = await scavengeItem(item); if (r) await postScavengeCard(item, r); }, "narrow"),
-      ));
-
-      const summary = layerSummary(item);
-      if (summary) row("ACKS-EQUIPMENT.props.net", el("span", "acks-equipment-props__note", summary));
-    }
-
-    // MATERIAL (any physical item) — "Auto" clears the flag → the name/type guess.
-    row("ACKS-EQUIPMENT.props.material", select(
-      [{ value: "auto", label: game.i18n.format("ACKS-EQUIPMENT.props.materialAuto", { guess: materialOf(item) }) },
-        ...MATERIALS.map((m) => ({ value: m, label: m }))],
-      String(item.getFlag(MODULE_ID, ITEM_FLAGS.MATERIAL) ?? "auto").toLowerCase(),
-      (v) => setMaterial(item, v),
+  if (item.type === "weapon" || item.type === "armor") {
+    // MASTERWORK — a bucket of the RR p159 tiers.
+    const tier = masterworkTierOf(item) ?? "none";
+    row("ACKS-EQUIPMENT.props.masterwork", select(
+      [{ value: "none", label: game.i18n.localize("ACKS-EQUIPMENT.masterwork.none") },
+        ...masterworkTiersFor(item.type).map((t) => ({ value: t, label: game.i18n.localize(`ACKS-EQUIPMENT.masterwork.${t}`) }))],
+      tier,
+      (v) => setMasterwork(item, v),
     ));
-    // Material has no standing modifier — it decides WHICH damage types can
-    // destroy the item (JJ p398 item loss). Saying so stops it reading as a
-    // setting that silently does nothing.
-    const mat = materialOf(item);
-    const harms = Object.entries(MATERIALS_BY_DAMAGE_TYPE).filter(([, list]) => list.includes(mat)).map(([dt]) => dt);
-    row("", el("span", "acks-equipment-props__note",
-      harms.length
-        ? game.i18n.format("ACKS-EQUIPMENT.props.materialNote", { types: harms.join(", ") })
-        : game.i18n.localize("ACKS-EQUIPMENT.props.materialNoneNote")));
 
-    if (item.type === "armor" && item.system?.type === "shield") {
-      row("ACKS-EQUIPMENT.props.variant", select(
-        SHIELD_VARIANT_KEYS.map((k) => ({ value: k, label: SHIELD_VARIANTS[k]?.label ?? k })),
-        item.getFlag(MODULE_ID, ITEM_FLAGS.SHIELD_VARIANT) ?? "standard",
-        (v) => setShieldVariant(item, v),
-      ));
-    }
-    if (isHelmet(item)) {
-      row("ACKS-EQUIPMENT.props.helm", select(
-        [{ value: "light", label: game.i18n.localize("ACKS-EQUIPMENT.helm.light") },
-          { value: "heavy", label: game.i18n.localize("ACKS-EQUIPMENT.helm.heavy") }],
-        helmetType(item),
-        (v) => item.setFlag(MODULE_ID, ITEM_FLAGS.HELMET, v),
-      ));
-    }
-    // A spell book is a RECOGNISED item (the RR "Spell Book"), so the list shows
-    // only ON one — never a "make any item a spell book" toggle. Edited in place.
-    if (isSpellbook(item)) {
-      const ta = el("textarea", "acks-equipment-props__spells");
-      ta.rows = 5;
-      ta.value = formatSpellList(spellbookSpells(item));
-      ta.placeholder = game.i18n.localize("ACKS-EQUIPMENT.spellbook.prompt");
-      onChange(ta, () => setSpellbookSpells(item, parseSpellList(ta.value)));
-      row("ACKS-EQUIPMENT.props.spellbook", ta);
-      row("", el("span", "acks-equipment-props__note",
-        `${pagesUsed(item)}/${pagesCapacity(item)} pages · ${spellbookValue(item)}gp`));
-    }
-    if (game.user?.isGM) {
-      // APPARENT IDENTITY — entry fields the GM fills in, applied on demand.
-      const d = item.getFlag(MODULE_ID, ITEM_FLAGS.DISGUISE);
-      const ap = d?.apparent ?? {};
-      const draft = { name: ap.name ?? item.name, cost: ap.cost ?? item.system?.cost ?? 0,
-        damage: ap.damage ?? item.system?.damage ?? "", ac: ap.ac ?? item.system?.aac?.value ?? 0 };
-      const nameF = field(draft.name, (v) => { draft.name = v; });
-      const costF = field(draft.cost, (v) => { draft.cost = v; }, "number");
-      const statF = item.type === "weapon" ? field(draft.damage, (v) => { draft.damage = v; })
-        : item.type === "armor" ? field(draft.ac, (v) => { draft.ac = v; }, "number") : null;
-      row("ACKS-EQUIPMENT.props.disguise", group(
-        nameF, costF, ...(statF ? [statF] : []),
-        button(game.i18n.localize(d ? "ACKS-EQUIPMENT.disguise.update" : "ACKS-EQUIPMENT.disguise.apply"),
-          "ACKS-EQUIPMENT.disguise.hint",
-          () => disguiseItem(item, { name: nameF.value, cost: costF.value, ...(item.type === "weapon" ? { damage: statF.value } : {}), ...(item.type === "armor" ? { ac: statF.value } : {}) }),
-          d ? "narrow active" : "narrow"),
-        ...(d ? [button(game.i18n.localize("ACKS-EQUIPMENT.disguise.reveal"), "ACKS-EQUIPMENT.disguise.activeHint", () => revealItem(item), "narrow")] : []),
-      ));
-      // The state line is the ONLY way a GM can tell a disguise is on — the item
-      // deliberately looks mundane everywhere else — so it always says which it
-      // is, and names the truth waiting underneath.
-      row("", el("span", `acks-equipment-props__note${d ? " acks-equipment-props__note--warn" : ""}`,
-        d
-          ? game.i18n.format("ACKS-EQUIPMENT.disguise.shown", { name: d.true?.name ?? "?" })
-          : game.i18n.localize("ACKS-EQUIPMENT.disguise.off")));
-    }
+    // CONDITION — pick a row of the applicable scavenged table directly, or
+    // roll it. Both read the reader's OWN imported table (RR p160, extracted
+    // by acks-content) when the world has one; the built-in RAW table is the
+    // fallback. "Pristine" clears.
+    const profile = item.type === "weapon" ? classifyWeapon(item) : null;
+    const tableKey = tableFor(item, profile);
+    const opts = scavengedOptions(tableKey);
+    const sc = scavengedOf(item);
+    const cur = sc?.labels?.length === 1 ? String(opts.find((o) => o.label === sc.labels[0])?.value ?? "none") : "none";
+    const picker = select(
+      [{ value: "none", label: game.i18n.localize("ACKS-EQUIPMENT.props.pristine") },
+        ...opts.map((o) => ({ value: String(o.value), label: o.label }))],
+      cur,
+      (v) => (v === "none" ? clearScavenged(item) : setScavengedRow(item, tableKey, v)),
+    );
+    // A stacked condition (a 19-20 reroll produced several) has no single row —
+    // say so rather than showing one of them as if it were the whole story.
+    if (sc?.labels?.length > 1) picker.dataset.tooltip = sc.labels.join("; ");
+    const g = el("div", "acks-equipment-props__group");
+    g.append(picker, button(game.i18n.localize("ACKS-EQUIPMENT.action.scavengeRoll"), "ACKS-EQUIPMENT.action.scavengeHint",
+      async () => { const r = await scavengeItem(item); if (r) await postScavengeCard(item, r); }, "narrow"));
+    row("ACKS-EQUIPMENT.props.condition", g);
 
-    form.appendChild(section);
-  } catch (err) {
-    console.error(`${MODULE_ID} | item property panel failed`, err);
+    const summary = layerSummary(item);
+    if (summary) row("ACKS-EQUIPMENT.props.net", el("span", "acks-equipment-props__note", summary));
   }
+
+  // MATERIAL (any physical item) — "Auto" clears the flag → the name/type guess.
+  row("ACKS-EQUIPMENT.props.material", select(
+    [{ value: "auto", label: game.i18n.format("ACKS-EQUIPMENT.props.materialAuto", { guess: materialOf(item) }) },
+      ...MATERIALS.map((m) => ({ value: m, label: m }))],
+    String(item.getFlag(MODULE_ID, ITEM_FLAGS.MATERIAL) ?? "auto").toLowerCase(),
+    (v) => setMaterial(item, v),
+  ));
+  // Material has no standing modifier — it decides WHICH damage types can
+  // destroy the item (JJ p398 item loss). Saying so stops it reading as a
+  // setting that silently does nothing.
+  const mat = materialOf(item);
+  const harms = Object.entries(MATERIALS_BY_DAMAGE_TYPE).filter(([, list]) => list.includes(mat)).map(([dt]) => dt);
+  row("", el("span", "acks-equipment-props__note",
+    harms.length
+      ? game.i18n.format("ACKS-EQUIPMENT.props.materialNote", { types: harms.join(", ") })
+      : game.i18n.localize("ACKS-EQUIPMENT.props.materialNoneNote")));
+
+  if (item.type === "armor" && item.system?.type === "shield") {
+    row("ACKS-EQUIPMENT.props.variant", select(
+      SHIELD_VARIANT_KEYS.map((k) => ({ value: k, label: SHIELD_VARIANTS[k]?.label ?? k })),
+      item.getFlag(MODULE_ID, ITEM_FLAGS.SHIELD_VARIANT) ?? "standard",
+      (v) => setShieldVariant(item, v),
+    ));
+  }
+  if (isHelmet(item)) {
+    row("ACKS-EQUIPMENT.props.helm", select(
+      [{ value: "light", label: game.i18n.localize("ACKS-EQUIPMENT.helm.light") },
+        { value: "heavy", label: game.i18n.localize("ACKS-EQUIPMENT.helm.heavy") }],
+      helmetType(item),
+      (v) => item.setFlag(MODULE_ID, ITEM_FLAGS.HELMET, v),
+    ));
+  }
+  return section;
 }
 
 function onRenderCharacterSheet(app, element) {
@@ -773,7 +703,7 @@ function onRenderCharacterSheet(app, element) {
     injectStrapControls(tab, app.actor); // Sling a shield (overlay-gated)
     // NOTE masterwork, the scavenged condition and a shield's VARIANT describe
     // what the item IS, not how it is being carried — they live on the item
-    // sheet's ACKS Properties panel as inline controls (injectItemProperties).
+    // sheet's Construction tab (item-sheet.mjs).
   } catch (err) {
     console.error(`${MODULE_ID} | inventory regrouping failed; core's layout stands`, err);
   }
@@ -786,9 +716,8 @@ export function registerSheet() {
   Hooks.on("renderApplicationV2", onRenderCharacterSheet);
   Hooks.on("renderActorSheetV2", onRenderCharacterSheet);
   Hooks.on("renderACKSCharacterSheetV2", onRenderCharacterSheet);
-  // The ACKS Properties panel on an item's own sheet (masterwork, condition,
-  // material, variant, helmet, spellbook, disguise). Guards on the document type.
-  Hooks.on("renderApplicationV2", injectItemProperties);
-  Hooks.on("renderItemSheetV2", injectItemProperties);
-  console.debug(`${MODULE_ID} | inventory wear buckets + item property panel registered.`);
+  // NOTE the item-sheet property panel is no longer hook-injected: the module
+  // registers its own equipment item sheet (item-sheet.mjs) whose Construction
+  // tab mounts buildConstructionPanel.
+  console.debug(`${MODULE_ID} | inventory wear buckets registered.`);
 }

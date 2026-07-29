@@ -228,7 +228,8 @@
       "title": "Spell book — {name}",
       "prompt": "One spell per line, level as a trailing number: “Fireball, 3”. Each spell fills one page per level; 100 pages total.",
       "save": "Save spells",
-      "over": "{name}: {used}/{cap} pages — over capacity."
+      "over": "{name}: {used}/{cap} pages — over capacity.",
+      "pages": "pages"
     },
     "disguise": {
       "hint": "GM: give this item an apparent (mundane) identity — players see the disguise, not the truth.",
@@ -242,7 +243,35 @@
       "shown": "Disguised (true: {name})",
       "cost": "Apparent value (gp)",
       "damage": "Apparent damage",
-      "ac": "Apparent AC"
+      "ac": "Apparent AC",
+      "nameHint": "Apparent name…"
+    },
+    "tab": {
+      "rolls": "Rolls",
+      "construction": "Construction",
+      "spells": "Spells"
+    },
+    "sheet": {
+      "label": "ACKS Equipment Item Sheet"
+    },
+    "named": {
+      "badge": "Named item — {n}/{max} powers unlocked. Click to open.",
+      "badgeNone": "Not a named item. Click to name it (GM).",
+      "state": "“{given}” — {n}/{max} unlocked ({bonuses})",
+      "revealed": "true name spoken: full power",
+      "guess": "Speak it",
+      "guessHint": "Speak a name…",
+      "noSpeaker": "No character to speak the name (open it from an actor, or assign your character).",
+      "noGuess": "{name} has already guessed this level — no guess until the next level of experience.",
+      "correct": "The name is TRUE — {item} awakens to its full power.",
+      "wrong": "Nothing happens. {name} may not guess again until gaining a level.",
+      "trueHint": "True name (GM)…",
+      "ladderHint": "Unlock ladder, e.g. damage,hit,damage (GM)",
+      "unlockedHint": "Unlocked",
+      "save": "Save",
+      "make": "Make named",
+      "unmake": "Un-name (restore base)",
+      "gmHint": "Ladder categories: hit, damage, ac, encumbrance, power (JJ p. 399). The Judge sets the order."
     }
   },
   "ACKS-EQUIPMENT.container.expand": "Show contents",

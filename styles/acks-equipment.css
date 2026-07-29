@@ -411,6 +411,81 @@
   opacity: 1;
 }
 
+/* --- Equipment item sheet: tab panes ---------------------------------- */
+
+.acks-equipment-tab-rolls,
+.acks-equipment-tab-construction,
+.acks-equipment-tab-spells {
+  padding: 0.5rem 0.75rem;
+}
+
+/* The moved details field-set was a narrow side column; in its own tab it can
+ * breathe a little, but full-width single inputs read badly. */
+.acks-equipment-tab-rolls .field-set--narrow {
+  max-width: 24rem;
+}
+
+.acks-equipment-tab-construction .acks-equipment-props {
+  margin-top: 0;
+  padding-top: 0;
+  border-top: none;
+}
+
+.acks-equipment-tab-spells .acks-equipment-props__spells {
+  width: 100%;
+}
+
+/* --- Header identity bar (named item + apparent identity) -------------- */
+
+.acks-equipment-idbar {
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+  margin-left: 0.4rem;
+}
+
+.acks-equipment-idbar__badge {
+  font-size: var(--font-size-14, 14px);
+  opacity: 0.55;
+  cursor: pointer;
+}
+
+.acks-equipment-idbar__badge.active {
+  opacity: 1;
+  color: var(--color-level-warning, #b8860b);
+}
+
+.acks-equipment-idbar__strips {
+  flex: 0 0 100%;
+}
+
+.acks-equipment-idbar__strip {
+  display: none;
+}
+
+.acks-equipment-idbar__strip.open {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.3rem;
+  padding: 0.35rem 0.6rem;
+  border-bottom: 1px solid var(--color-border-light-tertiary, #782e2244);
+}
+
+.acks-equipment-idbar__label {
+  font-size: var(--font-size-12, 12px);
+  font-weight: bold;
+  opacity: 0.85;
+}
+
+.acks-equipment-idbar__strip .acks-equipment-props__input {
+  flex: 1 1 6rem;
+}
+
+.acks-equipment-idbar__strip .acks-equipment-props__note {
+  flex: 1 1 100%;
+}
+
 /* --- Unarmed strike row ----------------------------------------------- */
 
 .acks-equipment-wear__bucket--unarmed .acks-equipment-unarmed {

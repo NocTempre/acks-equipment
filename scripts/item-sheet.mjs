@@ -1,0 +1,348 @@
+/* global game, foundry, CONFIG, document, Item, ui */
+/**
+ * The ACKS Equipment item sheet — a SUBCLASS of the system's own item sheet
+ * (the acks-abilities precedent: inherit the header, description, effects and
+ * contents parts verbatim; core stays untouched) registered as the default for
+ * weapon / armor / item documents. It restructures the sheet:
+ *
+ *   description   prose only — the stats side-column moves out
+ *   rolls         core's details field-set (damage, bonus, melee/missile,
+ *                 range, save, AC, type, quantity…), MOVED here as core's own
+ *                 nodes so every core binding and data-action keeps working
+ *   construction  what the item IS — masterwork, condition, material, shield
+ *                 variant, helmet — the module's property layers
+ *   spells        ONLY on a recognised Spell Book (a specific item class, never
+ *                 a property of ordinary gear): the recorded formulae
+ *   effects       core's Active Effects tab, untouched
+ *
+ * The two identity overlays ride the HEADER, not a tab: the JJ named-item state
+ * and the GM's apparent-identity mask are badges beside the name that unfold an
+ * overlay strip. An identity is something the item wears everywhere — pinning it
+ * to a tab buried it.
+ */
+import { MODULE_ID, ITEM_FLAGS } from "./constants.mjs";
+import { buildConstructionPanel } from "./sheet.mjs";
+import { disguiseItem, revealItem } from "./actions.mjs";
+import { isDisguised } from "./actions.mjs";
+import {
+  isSpellbook, spellbookSpells, setSpellbookSpells, parseSpellList, formatSpellList,
+  pagesUsed, pagesCapacity, spellbookValue,
+} from "./spellbook.mjs";
+import * as named from "./overlays/named.mjs";
+
+const T = `modules/${MODULE_ID}/templates`;
+export const EQUIPMENT_SHEET_TYPES = ["weapon", "armor", "item"];
+
+/** The system's registered (default) item sheet class — our base. */
+export function resolveItemSheetBase() {
+  const registered = CONFIG.Item?.sheetClasses?.weapon ?? {};
+  const entries = Object.values(registered);
+  return entries.find((e) => e.default)?.cls ?? entries[0]?.cls ?? null;
+}
+
+function el(tag, className, text) {
+  const node = document.createElement(tag);
+  if (className) node.className = className;
+  if (text !== undefined) node.textContent = text;
+  return node;
+}
+
+/**
+ * @param {typeof foundry.applications.api.ApplicationV2} Base the system's item sheet class
+ */
+export function createEquipmentItemSheet(Base) {
+  const P = Base.PARTS ?? {};
+  const baseTabs = Base.TABS?.primary?.tabs ?? [];
+  const tabById = Object.fromEntries(baseTabs.map((t) => [t.id, t]));
+
+  return class AcksEquipmentItemSheet extends Base {
+    static DEFAULT_OPTIONS = { classes: ["acks", "acks2", "item-v2", "acks-equipment-item"] };
+
+    static PARTS = {
+      header: P.header,
+      tabs: P.tabs,
+      description: P.description,
+      rolls: { template: `${T}/item-rolls.hbs`, scrollable: [""] },
+      construction: { template: `${T}/item-construction.hbs`, scrollable: [""] },
+      spells: { template: `${T}/item-spells.hbs`, scrollable: [""] },
+      effects: P.effects,
+      contents: P.contents,
+    };
+
+    static TABS = {
+      primary: {
+        tabs: [
+          tabById.description ?? { id: "description", label: "ACKS.category.description" },
+          { id: "rolls", label: "ACKS-EQUIPMENT.tab.rolls" },
+          { id: "construction", label: "ACKS-EQUIPMENT.tab.construction" },
+          { id: "spells", label: "ACKS-EQUIPMENT.tab.spells" },
+          tabById.effects ?? { id: "effects", label: "ACKS.category.effects" },
+          tabById.contents ?? { id: "contents", label: "ACKS.category.contents" },
+        ],
+        initial: "description",
+      },
+    };
+
+    tabGroups = { primary: "description" };
+
+    /** The Spells tab exists ONLY on a recognised Spell Book. */
+    _configureRenderParts(options) {
+      const parts = super._configureRenderParts(options);
+      if (!isSpellbook(this.item)) delete parts.spells;
+      return parts;
+    }
+
+    _prepareTabs(group) {
+      const tabs = super._prepareTabs(group);
+      if (group === "primary" && !isSpellbook(this.item)) delete tabs.spells;
+      return tabs;
+    }
+
+    async _onRender(context, options) {
+      await super._onRender(context, options);
+      try {
+        this.#moveDetailsIntoRolls();
+        this.#fillConstruction();
+        this.#fillSpells();
+        this.#injectHeaderOverlays();
+      } catch (err) {
+        console.error(`${MODULE_ID} | equipment item sheet decoration failed`, err);
+      }
+    }
+
+    /**
+     * Core's details field-set renders inside the description part (its left
+     * side-column). MOVE the node — core's own markup, inputs and data-actions
+     * — into the Rolls pane, so nothing is re-templated and everything keeps
+     * submitting through the same form.
+     */
+    #moveDetailsIntoRolls() {
+      const rollsPane = this.element.querySelector(".acks-equipment-tab-rolls");
+      const details = this.element.querySelector('[data-tab="description"] .field-set--narrow');
+      if (!rollsPane || !details) return;
+      rollsPane.appendChild(details);
+    }
+
+    #fillConstruction() {
+      const pane = this.element.querySelector(".acks-equipment-tab-construction");
+      if (!pane || pane.querySelector(".acks-equipment-props")) return;
+      pane.appendChild(buildConstructionPanel(this.item));
+    }
+
+    /** The Spells tab: the book's recorded formulae, edited in place. */
+    #fillSpells() {
+      const pane = this.element.querySelector(".acks-equipment-tab-spells");
+      if (!pane || pane.querySelector(".acks-equipment-props__spells")) return;
+      const item = this.item;
+      const ta = el("textarea", "acks-equipment-props__spells");
+      ta.rows = 14;
+      ta.value = formatSpellList(spellbookSpells(item));
+      ta.placeholder = game.i18n.localize("ACKS-EQUIPMENT.spellbook.prompt");
+      ta.addEventListener("change", (ev) => {
+        ev.stopPropagation(); // the sheet submits on change; this is a flag write
+        setSpellbookSpells(item, parseSpellList(ta.value)).catch((e) => console.error(`${MODULE_ID} | spellbook`, e));
+      });
+      const note = el("p", "acks-equipment-props__note",
+        `${pagesUsed(item)}/${pagesCapacity(item)} ${game.i18n.localize("ACKS-EQUIPMENT.spellbook.pages")} · ${spellbookValue(item)}gp`);
+      const hint = el("p", "acks-equipment-props__note", game.i18n.localize("ACKS-EQUIPMENT.spellbook.prompt"));
+      pane.append(hint, ta, note);
+    }
+
+    /* ---------------------------------------------------------------- */
+    /*  Header overlays: named item + apparent identity                  */
+    /* ---------------------------------------------------------------- */
+
+    #injectHeaderOverlays() {
+      const header = this.element.querySelector(".sheet-header");
+      if (!header || this.element.querySelector(".acks-equipment-idbar")) return;
+      const item = this.item;
+      const bar = el("div", "acks-equipment-idbar");
+      const strips = el("div", "acks-equipment-idbar__strips");
+
+      const badge = (icon, tooltip, active, onToggle) => {
+        const a = el("a", `acks-equipment-idbar__badge${active ? " active" : ""}`);
+        a.innerHTML = `<i class="fas ${icon}"></i>`;
+        a.dataset.tooltip = tooltip;
+        a.addEventListener("click", (ev) => {
+          ev.preventDefault();
+          ev.stopPropagation();
+          onToggle();
+        });
+        return a;
+      };
+      const toggleStrip = (strip) => {
+        const open = !strip.classList.contains("open");
+        for (const s of strips.children) s.classList.remove("open");
+        if (open) strip.classList.add("open");
+      };
+
+      // NAMED (JJ p399) — visible when the overlay is on, for a named item or a
+      // GM who could name it.
+      if (named.overlayEnabled() && (named.isNamed(item) || game.user.isGM)) {
+        const strip = this.#buildNamedStrip(item);
+        strips.append(strip);
+        const rec = named.namedOf(item);
+        const state = rec
+          ? game.i18n.format("ACKS-EQUIPMENT.named.badge", { n: named.unlockedCount(item), max: named.ladderOf(item).length || "?" })
+          : game.i18n.localize("ACKS-EQUIPMENT.named.badgeNone");
+        bar.append(badge("fa-signature", state, !!rec, () => toggleStrip(strip)));
+      }
+
+      // APPARENT IDENTITY — GM only; players must see nothing.
+      if (game.user.isGM) {
+        const strip = this.#buildDisguiseStrip(item);
+        strips.append(strip);
+        const on = isDisguised(item);
+        const tip = on
+          ? game.i18n.format("ACKS-EQUIPMENT.disguise.shown", { name: item.getFlag(MODULE_ID, ITEM_FLAGS.DISGUISE)?.true?.name ?? "?" })
+          : game.i18n.localize("ACKS-EQUIPMENT.disguise.off");
+        bar.append(badge("fa-mask", tip, on, () => toggleStrip(strip)));
+      }
+
+      if (!bar.children.length) return;
+      header.appendChild(bar);
+      header.after(strips);
+    }
+
+    /** Small helpers for overlay strips. */
+    #stripField(value, placeholderKey, type = "text") {
+      const i = el("input", "acks-equipment-props__input");
+      i.type = type;
+      i.value = value ?? "";
+      i.placeholder = game.i18n.localize(placeholderKey);
+      i.addEventListener("change", (ev) => ev.stopPropagation());
+      return i;
+    }
+
+    #stripButton(labelKey, onClick, extra = "") {
+      const b = el("button", `acks-equipment-props__btn narrow ${extra}`.trim(), game.i18n.localize(labelKey));
+      b.type = "button";
+      b.addEventListener("click", (ev) => {
+        ev.preventDefault();
+        ev.stopPropagation();
+        Promise.resolve(onClick()).catch((e) => console.error(`${MODULE_ID} | header overlay`, e));
+      });
+      return b;
+    }
+
+    #buildDisguiseStrip(item) {
+      const strip = el("div", "acks-equipment-idbar__strip acks-equipment-idbar__strip--disguise");
+      const d = item.getFlag(MODULE_ID, ITEM_FLAGS.DISGUISE);
+      const ap = d?.apparent ?? {};
+      const nameF = this.#stripField(ap.name ?? item.name, "ACKS-EQUIPMENT.disguise.nameHint");
+      const costF = this.#stripField(ap.cost ?? item.system?.cost ?? 0, "ACKS-EQUIPMENT.disguise.cost", "number");
+      const statF = item.type === "weapon"
+        ? this.#stripField(ap.damage ?? item.system?.damage ?? "", "ACKS-EQUIPMENT.disguise.damage")
+        : item.type === "armor"
+          ? this.#stripField(ap.ac ?? item.system?.aac?.value ?? 0, "ACKS-EQUIPMENT.disguise.ac", "number")
+          : null;
+      strip.append(
+        el("span", "acks-equipment-idbar__label", game.i18n.localize("ACKS-EQUIPMENT.props.disguise")),
+        nameF, costF, ...(statF ? [statF] : []),
+        this.#stripButton(d ? "ACKS-EQUIPMENT.disguise.update" : "ACKS-EQUIPMENT.disguise.apply", () =>
+          disguiseItem(item, {
+            name: nameF.value, cost: costF.value,
+            ...(item.type === "weapon" ? { damage: statF.value } : {}),
+            ...(item.type === "armor" ? { ac: statF.value } : {}),
+          })),
+        ...(d ? [this.#stripButton("ACKS-EQUIPMENT.disguise.reveal", () => revealItem(item))] : []),
+        el("span", `acks-equipment-props__note${d ? " acks-equipment-props__note--warn" : ""}`,
+          d ? game.i18n.format("ACKS-EQUIPMENT.disguise.shown", { name: d.true?.name ?? "?" })
+            : game.i18n.localize("ACKS-EQUIPMENT.disguise.off")),
+      );
+      return strip;
+    }
+
+    #buildNamedStrip(item) {
+      const strip = el("div", "acks-equipment-idbar__strip acks-equipment-idbar__strip--named");
+      const rec = named.namedOf(item);
+
+      if (rec) {
+        const b = named.unlockedBonuses(item);
+        const bits = [];
+        if (b.hit) bits.push(`+${b.hit} hit`);
+        if (b.damage) bits.push(`+${b.damage} dmg`);
+        if (b.ac) bits.push(`+${b.ac} AC`);
+        if (b.encumbrance) bits.push(`−${b.encumbrance} st`);
+        if (b.power) bits.push(`${b.power} power(s)`);
+        strip.append(el("span", "acks-equipment-props__note",
+          game.i18n.format("ACKS-EQUIPMENT.named.state", {
+            given: rec.givenName ?? item.name,
+            n: named.unlockedCount(item),
+            max: named.ladderOf(item).length,
+            bonuses: bits.join(", ") || "—",
+          }) + (rec.revealed ? ` — ${game.i18n.localize("ACKS-EQUIPMENT.named.revealed")}` : "")));
+
+        // Speak a name — the wielder's once-per-level guess (JJ p399).
+        const speaker = item.parent ?? game.user.character ?? null;
+        const guessF = this.#stripField("", "ACKS-EQUIPMENT.named.guessHint");
+        strip.append(guessF, this.#stripButton("ACKS-EQUIPMENT.named.guess", async () => {
+          if (!speaker) return ui.notifications.warn(game.i18n.localize("ACKS-EQUIPMENT.named.noSpeaker"));
+          const res = named.resolveGuess(item, speaker, guessF.value);
+          if (!res.allowed) return ui.notifications.warn(game.i18n.format("ACKS-EQUIPMENT.named.noGuess", { name: speaker.name }));
+          await item.update(res.updates);
+          if (res.correct) {
+            await item.update(named.applyUpdates(item));
+            ui.notifications.info(game.i18n.format("ACKS-EQUIPMENT.named.correct", { item: item.name }));
+          } else {
+            ui.notifications.info(game.i18n.format("ACKS-EQUIPMENT.named.wrong", { name: speaker.name }));
+          }
+        }));
+      }
+
+      // GM: set or edit the record — true name, the Judge's unlock ladder, and
+      // how many rungs are currently unlocked.
+      if (game.user.isGM) {
+        const trueF = this.#stripField(rec?.trueName ?? "", "ACKS-EQUIPMENT.named.trueHint");
+        const ladderF = this.#stripField((named.ladderOf(item) ?? []).join(","), "ACKS-EQUIPMENT.named.ladderHint");
+        const unlockedF = this.#stripField(rec?.unlocked ?? 0, "ACKS-EQUIPMENT.named.unlockedHint", "number");
+        strip.append(
+          trueF, ladderF, unlockedF,
+          this.#stripButton(rec ? "ACKS-EQUIPMENT.named.save" : "ACKS-EQUIPMENT.named.make", async () => {
+            const keys = Object.keys(named.NAMED_CATEGORIES);
+            const ladder = ladderF.value.split(",").map((s) => s.trim().toLowerCase()).filter((s) => keys.includes(s));
+            const record = {
+              ...(rec ?? {}),
+              trueName: trueF.value.trim(),
+              givenName: rec?.givenName ?? item.name,
+              ladder,
+              unlocked: Math.max(0, parseInt(unlockedF.value, 10) || 0),
+              revealed: rec?.revealed ?? false,
+              base: rec?.base ?? named.captureBase(item),
+            };
+            await item.setFlag(MODULE_ID, ITEM_FLAGS.NAMED, record);
+            await item.update(named.applyUpdates(item));
+          }),
+          ...(rec ? [this.#stripButton("ACKS-EQUIPMENT.named.unmake", async () => {
+            const base = named.baseOf(item);
+            await item.update({
+              "system.bonus": base.bonus,
+              ...(item.type === "weapon" ? { "system.damage": base.damage } : {}),
+              ...(item.type === "armor" ? { "system.aac.value": base.aac } : {}),
+              "system.weight6": base.weight6,
+            });
+            await item.unsetFlag(MODULE_ID, ITEM_FLAGS.NAMED);
+          })] : []),
+        );
+        strip.append(el("span", "acks-equipment-props__note", game.i18n.localize("ACKS-EQUIPMENT.named.gmHint")));
+      }
+      return strip;
+    }
+  };
+}
+
+/** Register the sheet as the default for equipment item types. Call at ready. */
+export function registerEquipmentItemSheet() {
+  const Base = resolveItemSheetBase();
+  if (!Base) {
+    console.error(`${MODULE_ID} | could not resolve the system item sheet; equipment item sheet NOT registered.`);
+    return;
+  }
+  const Cls = createEquipmentItemSheet(Base);
+  foundry.applications.apps.DocumentSheetConfig.registerSheet(Item, MODULE_ID, Cls, {
+    types: EQUIPMENT_SHEET_TYPES,
+    makeDefault: true,
+    label: game.i18n.localize("ACKS-EQUIPMENT.sheet.label"),
+  });
+  console.debug(`${MODULE_ID} | equipment item sheet registered (default for ${EQUIPMENT_SHEET_TYPES.join("/")}).`);
+}

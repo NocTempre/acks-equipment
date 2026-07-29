@@ -3,6 +3,32 @@
 Releases up to and including 0.15.1 predate this file; see the git history
 and GitHub releases for earlier changes.
 
+## 0.32.0
+
+**The equipment item sheet, restructured.** Weapon, armour and item documents now
+open in the module's own sheet — a subclass of the system's item sheet (the same
+technique the ACKS Abilities sheet uses; core is untouched, and the plain system
+sheet remains selectable per item via sheet configuration):
+
+- **Description** is prose only.
+- **Rolls** is its own tab: core's stats side-column (damage, bonus,
+  melee/missile, range, save — or AC and armour type, or subtype and quantity)
+  moves there whole, as core's own nodes, so every core input and button keeps
+  working exactly as before.
+- **Construction** is its own tab: masterwork, condition (with the Roll button),
+  material, shield variant, helmet type, and the net-effect line.
+- **Spells** appears ONLY on a recognised Spell Book — a specific item class,
+  never a property of ordinary gear — holding its formula list, page count and
+  value.
+- **Named item and Apparent identity are header overlays now**, not panel rows:
+  badges beside the item's name (a signature for the JJ named-item state, a mask
+  for the GM's disguise) that unfold an overlay strip. The named strip shows the
+  given name, unlocked powers and bonuses, lets a wielder speak a name (the
+  once-per-level guess, JJ p399), and lets the Judge set the true name, the
+  unlock ladder and the unlocked count; un-naming restores the captured base.
+  The disguise strip carries the apparent name/value/stat fields with
+  Apply / Reveal and always states whether a disguise is on.
+
 ## 0.31.0
 
 - **Fix: item properties did not save at all.** The panel's dropdowns and fields

@@ -14,6 +14,7 @@ import { onPreUpdateItem, onUpdateItem, refreshLoadout, primaryResponder, manage
 import { registerRollWrap } from "./roll-wrap.mjs";
 import { registerPaperDoll } from "./paperdoll.mjs";
 import { registerSheet } from "./sheet.mjs";
+import { registerEquipmentItemSheet } from "./item-sheet.mjs";
 import { advanceWieldedOnLevelUp } from "./overlays/named.mjs";
 
 /** True on exactly one client: the active GM responsible for automation. */
@@ -60,6 +61,18 @@ Hooks.once("ready", async () => {
     registerSheet();
   } catch (err) {
     console.error(`${MODULE_ID} | sheet integration failed`, err);
+  }
+
+  // The equipment ITEM sheet — a subclass of the system's own item sheet (the
+  // acks-abilities precedent) restructuring weapon/armor/item sheets into
+  // Description / Rolls / Construction (/ Spells on a spell book) / Effects,
+  // with the named-item and apparent-identity overlays on the header. At ready,
+  // not init: CONFIG.Item.sheetClasses is empty until the pending registrations
+  // flush, so the base class can only be resolved here.
+  try {
+    registerEquipmentItemSheet();
+  } catch (err) {
+    console.error(`${MODULE_ID} | equipment item sheet failed to register; core's item sheet stands`, err);
   }
 
   // A held light occupies a hand: when acks-formation lights/douses/burns out a
