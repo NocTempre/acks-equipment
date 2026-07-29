@@ -271,7 +271,14 @@
       "save": "Save",
       "make": "Make named",
       "unmake": "Un-name (restore base)",
-      "gmHint": "Ladder categories: hit, damage, ac, encumbrance, power (JJ p. 399). The Judge sets the order."
+      "gmHint": "Ladder categories: hit, damage, ac, encumbrance, power (JJ p. 399). The Judge sets the order.",
+      "trackLabel": "“{given}” — {n}/{max} unlocked",
+      "rungUnset": "unlock order not set",
+      "sealed": "still sealed",
+      "bonusLine": "Unlocked: {bonuses}",
+      "noBonuses": "No bonuses apply yet",
+      "noLadder": "No unlock ladder set — the Judge chooses the order (fields below): hit, damage, ac, encumbrance, power.",
+      "overlayOff": "Level-up advancement is OFF — enable “Overlay: named magic items (JJ)” in settings to automate it."
     }
   },
   "ACKS-EQUIPMENT.container.expand": "Show contents",

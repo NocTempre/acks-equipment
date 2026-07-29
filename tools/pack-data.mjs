@@ -568,8 +568,12 @@ const SAMPLE_ITEMS = [
     name: "Tooth-Breaker (named war hammer)",
     type: "weapon",
     img: "icons/weapons/hammers/hammer-war-spiked.webp",
-    system: { cost: 0, weight6: 1, damage: "1d6", bonus: 1, melee: true, missile: false, description: "<p>A rune-carved war hammer. Its finder named it <em>Tooth-Breaker</em>, unlocking one bonus category; each level of experience earned while wielding it unlocks another point, until its full power is reached. Speaking its true name would grant all its powers at once.</p><p><em>Judges Journal naming rules (p. 399). Enable the named-item overlay to track unlocking by level.</em></p>" },
-    flags: { size: "small", damageType: "bludgeoning", named: { trueName: "Fist of Iron", unlocked: 1, max: 3 } },
+    system: { cost: 0, weight6: 1, damage: "1d6+1", bonus: 0, melee: true, missile: false, description: "<p>A rune-carved war hammer. Its finder named it <em>Tooth-Breaker</em>, unlocking one bonus category; each level of experience earned while wielding it unlocks another point, until its full power is reached. Speaking its true name would grant all its powers at once.</p><p><em>Judges Journal naming rules (p. 399). The signature badge on the item sheet's header tracks the unlocking; enable the named-item overlay to advance it automatically on level-up.</em></p>" },
+    // The JJ p399 worked example: a +3/+3 hammer whose Judge set the unlock
+    // order damage → hit, alternating; one rung is unlocked at naming. `base`
+    // records the mundane stats so re-application is idempotent — the shipped
+    // system fields above already REFLECT the one unlocked rung (+1 damage).
+    flags: { size: "small", damageType: "bludgeoning", named: { trueName: "Fist of Iron", givenName: "Tooth-Breaker", unlocked: 1, revealed: false, ladder: ["damage", "hit", "damage", "hit", "damage", "hit"], base: { bonus: 0, damage: "1d6", aac: 0, weight6: 1 } } },
   },
 ];
 

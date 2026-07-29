@@ -1474,6 +1474,24 @@ check("accumulateImported: the reroll row itself contributes nothing", accumulat
 delete globalThis.acksLib;
 
 /* ---------------------------------------------------------------------- */
+/*  Named-item tracker display (ladder + legacy unlocked/max records)      */
+/* ---------------------------------------------------------------------- */
+
+const namedMod = await import(new URL("overlays/named.mjs", S));
+const namedDoc = (rec) => ({ type: "weapon", system: { bonus: 0, damage: "1d6", weight6: 1 }, getFlag: (_m, k) => (k === "named" ? rec : undefined) });
+// A modern record: ladder drives both mechanics and display.
+const ladderRec = { trueName: "X", ladder: ["damage", "hit", "damage"], unlocked: 2 };
+check("named maxOf reads the ladder length", namedMod.maxOf(namedDoc(ladderRec)) === 3);
+check("named unlockedDisplay matches mechanics on a ladder record", namedMod.unlockedDisplay(namedDoc(ladderRec)) === 2);
+// A LEGACY record (unlocked/max, no ladder) must still DISPLAY its progress.
+const legacyRec = { trueName: "X", unlocked: 1, max: 3 };
+check("legacy record: maxOf falls back to max", namedMod.maxOf(namedDoc(legacyRec)) === 3);
+check("legacy record: unlockedDisplay shows 1/3 (mechanics stay 0 without a ladder)", namedMod.unlockedDisplay(namedDoc(legacyRec)) === 1 && namedMod.unlockedCount(namedDoc(legacyRec)) === 0);
+check("legacy record: no bonuses apply without a ladder", Object.values(namedMod.unlockedBonuses(namedDoc(legacyRec))).every((v) => v === 0));
+// Revealed → full power on a ladder record.
+check("revealed ladder record displays full", namedMod.unlockedDisplay(namedDoc({ ...ladderRec, revealed: true })) === 3);
+
+/* ---------------------------------------------------------------------- */
 /*  Enclosing helm (RR p140) — light/heavy detection                       */
 /* ---------------------------------------------------------------------- */
 

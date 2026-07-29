@@ -489,6 +489,23 @@
   flex: 1 1 100%;
 }
 
+/* The named-item tracker: one rung per point of power, lit when unlocked. */
+.acks-equipment-named-track {
+  display: flex;
+  gap: 0.3rem;
+  align-items: center;
+}
+
+.acks-equipment-named-track__rung {
+  font-size: var(--font-size-12, 12px);
+  opacity: 0.35;
+}
+
+.acks-equipment-named-track__rung.lit {
+  opacity: 1;
+  color: var(--color-level-warning, #b8860b);
+}
+
 /* --- Unarmed strike row ----------------------------------------------- */
 
 .acks-equipment-wear__bucket--unarmed .acks-equipment-unarmed {

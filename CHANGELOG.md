@@ -3,6 +3,28 @@
 Releases up to and including 0.15.1 predate this file; see the git history
 and GitHub releases for earlier changes.
 
+## 0.33.0
+
+**The named-item tracker is now findable and is an actual tracker.**
+
+- **A named item always shows its signature badge** — the tracker was hidden
+  behind the "Overlay: named magic items" setting (default off), so a named item
+  showed nothing at all. The record lives on the item; its state is now always
+  visible. The setting still governs the *automation* (advancement on level-up)
+  and whether a GM is offered the badge on ordinary, unnamed gear — and the
+  strip tells the GM when that automation is off.
+- **The strip shows the unlock ladder as rungs**: one pip per point of the
+  item's power in the Judge's order, lit when unlocked, with each rung's
+  category on hover, the unlocked-bonus line, and the revealed state.
+- **Legacy records display properly.** An early record carrying only
+  `unlocked/max` (no ladder yet) used to read as an empty 0/0; it now shows its
+  real progress with unlabelled rungs, and warns the Judge that no unlock order
+  is set — without one, no bonuses can apply (JJ p399: the Judge chooses the
+  order).
+- The sample **Tooth-Breaker** now ships as the Judges Journal worked example:
+  the six-rung damage/hit ladder with one rung unlocked (+1 damage), its base
+  stats captured, and its fields reflecting the unlocked rung.
+
 ## 0.32.1
 
 Hotfix for 0.32.0's sheet — it could render as a header over an empty body:

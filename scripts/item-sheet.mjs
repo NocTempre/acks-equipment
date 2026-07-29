@@ -195,15 +195,17 @@ export function createEquipmentItemSheet(Base) {
       };
       const toggleStrip = (key) => setOpen(this.#openStrip === key ? null : key);
 
-      // NAMED (JJ p399) — visible when the overlay is on, for a named item or a
-      // GM who could name it.
-      if (named.overlayEnabled() && (named.isNamed(item) || game.user.isGM)) {
+      // NAMED (JJ p399). A NAMED item always shows its tracker — the record is
+      // on the item, and hiding it is how "where's the named item tracker?"
+      // happens. The overlay setting gates the AUTOMATION (level-up advancement)
+      // and whether a GM is offered the badge on ordinary, unnamed gear.
+      if (named.isNamed(item) || (named.overlayEnabled() && game.user.isGM)) {
         const strip = this.#buildNamedStrip(item);
         strip.dataset.strip = "named";
         strips.append(strip);
         const rec = named.namedOf(item);
         const state = rec
-          ? game.i18n.format("ACKS-EQUIPMENT.named.badge", { n: named.unlockedCount(item), max: named.ladderOf(item).length || "?" })
+          ? game.i18n.format("ACKS-EQUIPMENT.named.badge", { n: named.unlockedDisplay(item), max: named.maxOf(item) || "?" })
           : game.i18n.localize("ACKS-EQUIPMENT.named.badgeNone");
         bar.append(badge("fa-signature", state, !!rec, () => toggleStrip("named")));
       }
@@ -283,6 +285,21 @@ export function createEquipmentItemSheet(Base) {
       const rec = named.namedOf(item);
 
       if (rec) {
+        // THE TRACKER: one rung per point of the item's power, in the Judge's
+        // unlock order — lit when unlocked, dimmed when still sealed. A legacy
+        // record (unlocked/max with no ladder yet) shows unlabelled rungs so the
+        // progress is still visible before the Judge sets the order.
+        const ladder = named.ladderOf(item);
+        const max = named.maxOf(item);
+        const litCount = named.unlockedDisplay(item);
+        const track = el("div", "acks-equipment-named-track");
+        for (let i = 0; i < max; i++) {
+          const cat = named.NAMED_CATEGORIES[ladder[i]]?.label ?? game.i18n.localize("ACKS-EQUIPMENT.named.rungUnset");
+          const rung = el("span", `acks-equipment-named-track__rung${i < litCount ? " lit" : ""}`);
+          rung.innerHTML = `<i class="fas ${i < litCount ? "fa-circle" : "fa-circle-dot"}"></i>`;
+          rung.dataset.tooltip = `${i + 1}. ${cat}${i < litCount ? "" : ` — ${game.i18n.localize("ACKS-EQUIPMENT.named.sealed")}`}`;
+          track.append(rung);
+        }
         const b = named.unlockedBonuses(item);
         const bits = [];
         if (b.hit) bits.push(`+${b.hit} hit`);
@@ -290,13 +307,25 @@ export function createEquipmentItemSheet(Base) {
         if (b.ac) bits.push(`+${b.ac} AC`);
         if (b.encumbrance) bits.push(`−${b.encumbrance} st`);
         if (b.power) bits.push(`${b.power} power(s)`);
-        strip.append(el("span", "acks-equipment-props__note",
-          game.i18n.format("ACKS-EQUIPMENT.named.state", {
-            given: rec.givenName ?? item.name,
-            n: named.unlockedCount(item),
-            max: named.ladderOf(item).length,
-            bonuses: bits.join(", ") || "—",
-          }) + (rec.revealed ? ` — ${game.i18n.localize("ACKS-EQUIPMENT.named.revealed")}` : "")));
+        strip.append(
+          el("span", "acks-equipment-idbar__label",
+            game.i18n.format("ACKS-EQUIPMENT.named.trackLabel", { given: rec.givenName ?? item.name, n: litCount, max })),
+          track,
+          el("span", "acks-equipment-props__note",
+            (bits.length ? game.i18n.format("ACKS-EQUIPMENT.named.bonusLine", { bonuses: bits.join(", ") }) : game.i18n.localize("ACKS-EQUIPMENT.named.noBonuses")) +
+            (rec.revealed ? ` — ${game.i18n.localize("ACKS-EQUIPMENT.named.revealed")}` : "")),
+        );
+        // A record with no ladder cannot APPLY anything — the Judge sets the
+        // unlock order (JJ p399); say so instead of silently granting nothing.
+        if (!ladder.length && game.user.isGM) {
+          strip.append(el("span", "acks-equipment-props__note acks-equipment-props__note--warn",
+            game.i18n.localize("ACKS-EQUIPMENT.named.noLadder")));
+        }
+        // The automation (advance on level-up) rides the overlay setting.
+        if (!named.overlayEnabled() && game.user.isGM) {
+          strip.append(el("span", "acks-equipment-props__note acks-equipment-props__note--warn",
+            game.i18n.localize("ACKS-EQUIPMENT.named.overlayOff")));
+        }
 
         // Speak a name — the wielder's once-per-level guess (JJ p399).
         const speaker = item.parent ?? game.user.character ?? null;
