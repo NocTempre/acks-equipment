@@ -455,8 +455,11 @@
   color: var(--color-level-warning, #b8860b);
 }
 
+/* Sits in the window-content COLUMN flex: it must only ever be as tall as its
+ * open strip. (A 100% flex-basis here meant 100% of the HEIGHT — an invisible
+ * block that swallowed the body and crushed every tab pane to zero.) */
 .acks-equipment-idbar__strips {
-  flex: 0 0 100%;
+  flex: 0 0 auto;
 }
 
 .acks-equipment-idbar__strip {

@@ -65,8 +65,10 @@ export function createEquipmentItemSheet(Base) {
       rolls: { template: `${T}/item-rolls.hbs`, scrollable: [""] },
       construction: { template: `${T}/item-construction.hbs`, scrollable: [""] },
       spells: { template: `${T}/item-spells.hbs`, scrollable: [""] },
-      effects: P.effects,
-      contents: P.contents,
+      // A base part the system does not define must not reach the framework as
+      // an `undefined` config.
+      ...(P.effects ? { effects: P.effects } : {}),
+      ...(P.contents ? { contents: P.contents } : {}),
     };
 
     static TABS = {
@@ -98,15 +100,25 @@ export function createEquipmentItemSheet(Base) {
       return tabs;
     }
 
+    /** Which overlay strip is open, surviving the re-render every form change causes. */
+    #openStrip = null;
+
     async _onRender(context, options) {
       await super._onRender(context, options);
-      try {
-        this.#moveDetailsIntoRolls();
-        this.#fillConstruction();
-        this.#fillSpells();
-        this.#injectHeaderOverlays();
-      } catch (err) {
-        console.error(`${MODULE_ID} | equipment item sheet decoration failed`, err);
+      // Each decoration guards itself: one failing must not take the others —
+      // or worse, the whole sheet — with it.
+      const steps = [
+        ["rolls", () => this.#moveDetailsIntoRolls()],
+        ["construction", () => this.#fillConstruction()],
+        ["spells", () => this.#fillSpells()],
+        ["header overlays", () => this.#injectHeaderOverlays()],
+      ];
+      for (const [what, step] of steps) {
+        try {
+          step();
+        } catch (err) {
+          console.error(`${MODULE_ID} | equipment item sheet: ${what} decoration failed`, err);
+        }
       }
     }
 
@@ -154,7 +166,14 @@ export function createEquipmentItemSheet(Base) {
 
     #injectHeaderOverlays() {
       const header = this.element.querySelector(".sheet-header");
-      if (!header || this.element.querySelector(".acks-equipment-idbar")) return;
+      if (!header) return;
+      // IDEMPOTENT REBUILD. The badges die with the header when its part
+      // re-renders, but the STRIPS container sits between parts and used to
+      // survive — every form change (the sheet submits on change) re-rendered
+      // and injected a fresh copy beside the orphan, so strips accumulated and
+      // a stale one could sit permanently open. Remove every prior copy, then
+      // rebuild, restoring which strip the user had open.
+      for (const stale of this.element.querySelectorAll(".acks-equipment-idbar, .acks-equipment-idbar__strips")) stale.remove();
       const item = this.item;
       const bar = el("div", "acks-equipment-idbar");
       const strips = el("div", "acks-equipment-idbar__strips");
@@ -170,38 +189,44 @@ export function createEquipmentItemSheet(Base) {
         });
         return a;
       };
-      const toggleStrip = (strip) => {
-        const open = !strip.classList.contains("open");
-        for (const s of strips.children) s.classList.remove("open");
-        if (open) strip.classList.add("open");
+      const setOpen = (key) => {
+        this.#openStrip = key;
+        for (const s of strips.children) s.classList.toggle("open", s.dataset.strip === key);
       };
+      const toggleStrip = (key) => setOpen(this.#openStrip === key ? null : key);
 
       // NAMED (JJ p399) — visible when the overlay is on, for a named item or a
       // GM who could name it.
       if (named.overlayEnabled() && (named.isNamed(item) || game.user.isGM)) {
         const strip = this.#buildNamedStrip(item);
+        strip.dataset.strip = "named";
         strips.append(strip);
         const rec = named.namedOf(item);
         const state = rec
           ? game.i18n.format("ACKS-EQUIPMENT.named.badge", { n: named.unlockedCount(item), max: named.ladderOf(item).length || "?" })
           : game.i18n.localize("ACKS-EQUIPMENT.named.badgeNone");
-        bar.append(badge("fa-signature", state, !!rec, () => toggleStrip(strip)));
+        bar.append(badge("fa-signature", state, !!rec, () => toggleStrip("named")));
       }
 
       // APPARENT IDENTITY — GM only; players must see nothing.
       if (game.user.isGM) {
         const strip = this.#buildDisguiseStrip(item);
+        strip.dataset.strip = "disguise";
         strips.append(strip);
         const on = isDisguised(item);
         const tip = on
           ? game.i18n.format("ACKS-EQUIPMENT.disguise.shown", { name: item.getFlag(MODULE_ID, ITEM_FLAGS.DISGUISE)?.true?.name ?? "?" })
           : game.i18n.localize("ACKS-EQUIPMENT.disguise.off");
-        bar.append(badge("fa-mask", tip, on, () => toggleStrip(strip)));
+        bar.append(badge("fa-mask", tip, on, () => toggleStrip("disguise")));
       }
 
       if (!bar.children.length) return;
       header.appendChild(bar);
       header.after(strips);
+      // A strip the user had open stays open across the re-render every field
+      // edit triggers (applying a disguise no longer snaps the strip shut —
+      // or, before the orphan fix, left a DEAD copy of it open).
+      if (this.#openStrip) setOpen(this.#openStrip);
     }
 
     /** Small helpers for overlay strips. */
@@ -336,6 +361,14 @@ export function registerEquipmentItemSheet() {
   const Base = resolveItemSheetBase();
   if (!Base) {
     console.error(`${MODULE_ID} | could not resolve the system item sheet; equipment item sheet NOT registered.`);
+    return;
+  }
+  // The subclass leans on the shape of the system's sheet (its header/tabs/
+  // description parts and the details field-set the Rolls tab adopts). A system
+  // build without that shape gets CORE'S sheet, not a broken one of ours.
+  const P = Base.PARTS ?? {};
+  if (!P.header || !P.tabs || !P.description) {
+    console.warn(`${MODULE_ID} | the system item sheet does not have the expected parts (header/tabs/description); keeping the system sheet.`);
     return;
   }
   const Cls = createEquipmentItemSheet(Base);

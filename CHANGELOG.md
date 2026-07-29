@@ -3,6 +3,25 @@
 Releases up to and including 0.15.1 predate this file; see the git history
 and GitHub releases for earlier changes.
 
+## 0.32.1
+
+Hotfix for 0.32.0's sheet — it could render as a header over an empty body:
+
+- **The tab panes were being crushed to zero height.** The header overlay-strip
+  container carried `flex-basis: 100%`, and in the window's column layout that
+  means 100% of the HEIGHT — an invisible block that swallowed the body, leaving
+  the nav and every pane squeezed out of view. It now takes only the height of
+  an open strip (zero when closed).
+- **Overlay strips no longer accumulate.** The sheet re-renders on every field
+  change; the strips container sat between parts and survived, so each render
+  injected a fresh copy beside the orphan — a stale strip could sit permanently
+  open. Overlays now rebuild idempotently, and the strip you had open stays open
+  across re-renders (applying a disguise no longer snaps it shut).
+- **Defensive registration.** On a system build whose item sheet lacks the parts
+  this subclass leans on, the module keeps the system sheet instead of
+  registering a broken one, and each sheet decoration is guarded separately so
+  one failure cannot blank the rest.
+
 ## 0.32.0
 
 **The equipment item sheet, restructured.** Weapon, armour and item documents now
