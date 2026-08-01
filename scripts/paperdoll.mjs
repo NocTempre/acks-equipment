@@ -207,9 +207,7 @@ async function placeInPaperDoll(actor, item) {
   await new Promise((r) => setTimeout(r, 150));
   if (!item.system?.equipped) return false; // changed again while we waited
   const slots = foundry.utils.deepClone(actor.getFlag(PAPERDOLL_ID, "slots") ?? {});
-  for (const entries of Object.values(slots)) {
-    if (entries && typeof entries === "object" && Object.values(entries).includes(item.uuid)) return false;
-  }
+  if (isPlaced(slots, item.uuid)) return false;
   const target = planDollSlot(actor, item, slots, resolveUuid);
   if (!target) return false;
   slots[target] = { ...(slots[target] ?? {}), 0: item.uuid };
@@ -219,31 +217,64 @@ async function placeInPaperDoll(actor, item) {
   return true;
 }
 
+/** Is this uuid already sitting in some slot? */
+function isPlaced(slots, uuid) {
+  return Object.values(slots).some((e) => e && typeof e === "object" && Object.values(e).includes(uuid));
+}
+
+/** One reconciliation at a time per actor — see syncActorToDoll. */
+const RECONCILING = new Set();
+
 /**
  * Reconcile one actor's doll to the sheet's truth: stale slot entries
  * (unequipped, deleted, foreign) are cleared, every equipped wearable is
  * placed. Converges: a second run makes no writes.
+ *
+ * ONE write for the whole reconciliation, and one pass at a time. Both matter
+ * because writing the slots flag fires `updateActor`, which the doll listens on
+ * and answers with a re-render — which calls this back. A write per item turned
+ * opening a doll into a write→render→reconcile storm that re-walked every item
+ * each time round; a single write settles it in one extra no-op pass.
  */
 export async function syncActorToDoll(actor) {
   if (actor?.type !== "character" || !actor.isOwner) return;
-  const slots = foundry.utils.deepClone(actor.getFlag(PAPERDOLL_ID, "slots") ?? {});
-  let changed = false;
-  for (const [slotId, entries] of Object.entries(slots)) {
-    if (!entries || typeof entries !== "object") continue;
-    for (const [index, uuid] of Object.entries(entries)) {
-      if (!uuid) continue;
-      const occupant = resolveUuid(uuid);
-      if (!occupant || occupant.parent?.id !== actor.id || !occupant.system?.equipped) {
-        slots[slotId][index] = null; // the doll's own clear convention
-        changed = true;
+  if (RECONCILING.has(actor.id)) return;
+  RECONCILING.add(actor.id);
+  try {
+    // One beat, once — not once per item. When the change came from the doll
+    // itself, its own slots write lands first and we see it already placed, so
+    // the two writers never fight over slot choice.
+    await new Promise((r) => setTimeout(r, 150));
+    const slots = foundry.utils.deepClone(actor.getFlag(PAPERDOLL_ID, "slots") ?? {});
+    let changed = false;
+    for (const [slotId, entries] of Object.entries(slots)) {
+      if (!entries || typeof entries !== "object") continue;
+      for (const [index, uuid] of Object.entries(entries)) {
+        if (!uuid) continue;
+        const occupant = resolveUuid(uuid);
+        if (!occupant || occupant.parent?.id !== actor.id || !occupant.system?.equipped) {
+          slots[slotId][index] = null; // the doll's own clear convention
+          changed = true;
+        }
       }
     }
-  }
-  if (changed) await actor.setFlag(PAPERDOLL_ID, "slots", slots);
-  for (const item of actor.items) {
-    if (!item.system?.equipped) continue;
-    if (item.type !== "weapon" && item.type !== "armor" && item.type !== "item") continue;
-    await placeInPaperDoll(actor, item);
+    // Plan every placement against the SAME in-memory slots object, so two
+    // items cannot be planned into one slot and the whole lot costs one write.
+    const placed = [];
+    for (const item of actor.items) {
+      if (!item.system?.equipped) continue;
+      if (item.type !== "weapon" && item.type !== "armor" && item.type !== "item") continue;
+      if (isPlaced(slots, item.uuid)) continue;
+      const target = planDollSlot(actor, item, slots, resolveUuid);
+      if (!target) continue;
+      slots[target] = { ...(slots[target] ?? {}), 0: item.uuid };
+      placed.push([item, target]);
+      changed = true;
+    }
+    if (changed) await actor.setFlag(PAPERDOLL_ID, "slots", slots);
+    for (const [item, target] of placed) await setHandFlag(item, target, true);
+  } finally {
+    RECONCILING.delete(actor.id);
   }
 }
 
@@ -264,6 +295,37 @@ async function onPaperDollSwap(actor, a, b) {
   await refreshLoadout(actor);
 }
 
+/** The doll's own `playerOwnedOnly` gate, so our button appears exactly where its control does. */
+function dollAllowsActor(actor) {
+  try {
+    return !game.settings.get(PAPERDOLL_ID, "playerOwnedOnly") || !!actor.hasPlayerOwner;
+  } catch {
+    return true; // the setting's shape is the doll's own business
+  }
+}
+
+/**
+ * Toggle the doll for an actor exactly as its own header control does: an open
+ * window closes, otherwise a fresh one renders.
+ *
+ * Reuse, not reimplementation — `ui.paperDoll` is the doll's OWN class, which
+ * it publishes on `init`. So this is its constructor and its close, and the
+ * existing-window check is what keeps a SECOND instance off one actor: each
+ * `new PaperDoll()` monkey-patches `sheet.close`/`setPosition`, and a second
+ * one wraps the first's wrapper — after which closing them out of order leaves
+ * the sheet permanently patched by a dead window.
+ */
+function toggleDoll(actor) {
+  const open = dollWindowsFor(actor.id);
+  if (open.length) {
+    for (const w of open) w.close?.()?.catch?.(() => {});
+    return;
+  }
+  const DollApp = ui.paperDoll;
+  if (typeof DollApp !== "function") return;
+  new DollApp(actor).render(true);
+}
+
 /**
  * A DIRECT header button for the doll on character sheets.
  *
@@ -273,34 +335,26 @@ async function onPaperDollSwap(actor, a, b) {
  * reads as "the integration broke". This restores a visible button beside the
  * other modules' header buttons.
  *
- * Reuse, not reimplementation: we fire the doll's own header-controls hook
- * into a scratch array and wire our button to the `onClick` IT provides, so
- * open/toggle behaviour (and its playerOwnedOnly gate — no entry pushed means
- * no button) stays entirely the doll's.
- *
- * Skipped when the doll's autoOpen is on: the doll already opens itself then,
- * and re-firing its hook would schedule a second auto-open.
+ * It does NOT re-fire core's `getHeaderControlsActorSheetV2` to harvest the
+ * doll's entry. That hook is core's to fire: every module listening on it runs
+ * again on each re-fire, side effects and all — one schedules an auto-open,
+ * another dereferences `app.document` unguarded — so borrowing one entry meant
+ * running everyone else's listener too. We build the button ourselves and drive
+ * the doll's own class instead; core still fires the hook once per render, so
+ * the doll's ⋮ entry is untouched.
  */
 export function injectDollHeaderButton(app, element) {
   if (activeStrategy() !== "paperdoll") return;
-  if (app?.actor?.type !== "character") return;
+  // An actor's SHEET — not merely "a window that has an actor". We are offered
+  // every ApplicationV2 render, and other modules' windows carry an `.actor`
+  // and draw a `.window-header` too (the doll's own window is one), so the gate
+  // has to be the document, or the button lands inside foreign windows.
+  if (app?.document?.documentName !== "Actor") return;
+  const actor = app.document;
+  if (actor.type !== "character" || !dollAllowsActor(actor)) return;
+  if (typeof ui.paperDoll !== "function") return; // no class to open: no button
   const header = element?.querySelector?.(".window-header");
   if (!header || header.querySelector(".acks-equipment-doll-button")) return;
-  try {
-    if (game.settings.get(PAPERDOLL_ID, "autoOpen")) return;
-  } catch {
-    /* setting shape is the doll's own business; absence means not auto-opening */
-  }
-  // CORE's header-controls hook, re-fired deliberately so the doll hands us
-  // its own entry — NOT a custom hook of ours, hence the constant: the
-  // namespacing validator caps `Hooks.callAll` string literals to
-  // acksEquipment-prefixed names, and this is the documented honour-system
-  // path for deliberate cross-module interop (constants.mjs HOOKS note).
-  const CORE_HEADER_CONTROLS_HOOK = "getHeaderControls" + "ActorSheetV2";
-  const controls = [];
-  Hooks.callAll(CORE_HEADER_CONTROLS_HOOK, app, controls);
-  const doll = controls.find((c) => c.class === "paper-doll" && typeof c.onClick === "function");
-  if (!doll) return; // gated off (playerOwnedOnly) or the doll changed shape
   const btn = document.createElement("button");
   btn.type = "button";
   btn.className = "header-control icon fa-solid fa-person acks-equipment-doll-button";
@@ -310,7 +364,7 @@ export function injectDollHeaderButton(app, element) {
   btn.addEventListener("click", (ev) => {
     ev.preventDefault();
     ev.stopPropagation();
-    doll.onClick();
+    toggleDoll(actor);
   });
   header.insertBefore(btn, header.querySelector("[data-action='close']"));
 }
@@ -336,16 +390,18 @@ function dollWindowsFor(actorId) {
 }
 
 /**
- * Close the doll with its sheet. The doll opens per-actor, from the sheet,
- * but (3.x on v14) does not track the sheet's lifecycle — close the sheet and
- * the doll just stays, which reads as a leak. The sheet is the doll's reason
- * to exist, so it follows the sheet out.
+ * Close the doll with its sheet. A safety net, not the mechanism: Paper Doll
+ * 3.x patches `sheet.close` to take itself down, so normally it is already
+ * gone by the time this runs and there is nothing to find. It stays for the
+ * case where that patch was lost — a second doll instance on one actor wraps
+ * the first's wrapper, and closing those out of order leaves the sheet holding
+ * a dead window's close, after which the doll outlives its sheet.
  */
 function closeDollWithSheet(app) {
-  const actorId = app?.actor?.id;
+  const actorId = app?.document?.id ?? app?.actor?.id;
   if (!actorId) return;
   for (const doll of dollWindowsFor(actorId)) {
-    doll.close?.().catch?.(() => {});
+    doll.close?.()?.catch?.(() => {});
   }
 }
 

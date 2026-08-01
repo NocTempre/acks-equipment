@@ -686,7 +686,11 @@ export function buildConstructionPanel(item) {
 
 function onRenderCharacterSheet(app, element) {
   try {
-    if (app?.actor?.type !== "character") return;
+    // `renderApplicationV2` offers EVERY ApplicationV2, and plenty of other
+    // modules' windows expose an `.actor` (Paper Doll's own does) — so the gate
+    // is "this is an Actor's sheet", not "this has an actor". Without it a
+    // foreign window reaches the injectors below and gets dressed as a sheet.
+    if (app?.document?.documentName !== "Actor" || app.document.type !== "character") return;
     // Restore a visible Paper Doll button (self-guards on strategy + settings).
     injectDollHeaderButton(app, element);
     const tab = element?.querySelector?.(".sheet-inventory");

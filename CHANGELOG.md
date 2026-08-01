@@ -1,5 +1,21 @@
 # Changelog
 
+## 0.35.1
+
+- **Hotfix — the Paper Doll button no longer breaks sheets (and dolls).** The
+  header button obtained its click handler by re-firing core's
+  `getHeaderControlsActorSheetV2` hook, which runs *every* module's listener:
+  dice-so-nice threw `Cannot read properties of undefined (reading 'isOwner')`
+  each time, and Paper Doll's own listener re-armed its auto-open. Worse, the
+  button was injected into any window exposing an `.actor` — including the
+  doll's own — so every doll render fired the cascade again. The button is now
+  built directly and drives Paper Doll's published class, and it is injected
+  only on real actor sheets.
+- **Opening a doll no longer storms the actor with writes.** Reconciling the
+  doll to the sheet wrote the slots flag once per equipped item; each write
+  re-rendered the doll, which restarted the reconciliation. It now plans every
+  placement in one pass and writes once.
+
 ## 0.35.0
 
 - **Uninstall — Strip Equipment Data** (macro + `api.stripModuleData`):

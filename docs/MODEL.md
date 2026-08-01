@@ -142,3 +142,27 @@ Expertise") and this module should not maintain a rename table.
 
 Enforced RAW: gloves block lockpicking (RR p. 145). Bashing destroys the
 container; a `fragile` one takes its contents with it.
+
+## 2026-08-01 — never re-fire another application's hooks
+
+The doll's header button used to obtain its click handler by re-firing core's
+`getHeaderControlsActorSheetV2` into a scratch array and reading the entry Paper
+Doll pushed. That looked like reuse. It was not: `Hooks.callAll` runs *every*
+registered listener, so borrowing one module's entry ran all the others'
+side effects too — dice-so-nice dereferenced `app.document` unguarded and threw,
+and Paper Doll's own listener re-armed its auto-open timer. **A hook belongs to
+whoever fires it.** Read another module's published surface (`ui.paperDoll` is
+the doll's own class) or its documents; never re-fire its hooks to get at data.
+
+The second half of the same bug was the render gate. `renderApplicationV2`
+offers every ApplicationV2, and `app.actor?.type === "character"` is true for a
+great many windows that are not a character sheet — the doll's own window among
+them, which also draws a `.window-header` and so looked injectable. The gate for
+"is this a sheet" is the **document** (`app.document?.documentName === "Actor"`),
+never the presence of an `.actor`.
+
+Reconciliation writes once. `syncActorToDoll` plans every placement against one
+in-memory `slots` object and issues a single `setFlag`, because that flag write
+fires `updateActor`, which the doll answers with a re-render, which calls the
+reconciler back. One write per item made opening a doll a write→render→reconcile
+storm; one write per pass settles in a single no-op follow-up.

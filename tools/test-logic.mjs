@@ -1086,6 +1086,69 @@ check("doll plan: both hands full -> leave the player's placement alone",
   planDollSlot(dollActor, uAxe, { MAIN_RIGHT: { 0: "u-sw" }, MAIN_LEFT: { 0: "u-sh" } }, rsv) === null);
 
 /* ---------------------------------------------------------------------- */
+/*  Paper Doll header button: WHERE it may be injected                      */
+/*                                                                          */
+/*  We are offered every ApplicationV2 render, and other modules' windows    */
+/*  carry an `.actor` too — the doll's own window is one. Injecting there    */
+/*  once re-fired core's header-controls hook with a document-less app,      */
+/*  which threw inside another module's listener and could spawn dolls       */
+/*  recursively. The gate is the DOCUMENT, and no core hook is ever re-fired.*/
+/* ---------------------------------------------------------------------- */
+
+const { injectDollHeaderButton } = await import(new URL("paperdoll.mjs", S));
+
+const firedHooks = [];
+const realCallAll = globalThis.Hooks.callAll;
+globalThis.Hooks.callAll = (name, ...a) => { firedHooks.push(name); return realCallAll?.(name, ...a); };
+const realModules = globalThis.game.modules;
+globalThis.game.modules = { get: (id) => ({ active: id === "fvtt-paper-doll-ui" }) };
+SETTINGS_STATE.paperdollStrategy = "paperdoll";
+SETTINGS_STATE.playerOwnedOnly = false;
+globalThis.ui = globalThis.ui ?? {};
+globalThis.ui.paperDoll = class PaperDoll {};
+globalThis.document = {
+  createElement: () => ({ dataset: {}, classList: { add: () => {} }, addEventListener: () => {}, style: {} }),
+};
+// Minimal header: reports no existing button, records what gets inserted.
+const makeElement = () => {
+  const inserted = [];
+  const header = { querySelector: () => null, insertBefore: (n) => inserted.push(n) };
+  return { inserted, querySelector: (s) => (s === ".window-header" ? header : null) };
+};
+
+const charDoc = { documentName: "Actor", id: "a1", type: "character", hasPlayerOwner: true };
+const sheetApp = { document: charDoc, actor: charDoc };
+const sheetEl = makeElement();
+injectDollHeaderButton(sheetApp, sheetEl);
+check("doll button: a real character sheet gets the button", sheetEl.inserted.length === 1);
+
+// The Paper Doll window's own shape: an `.actor`, a `.window-header`, no `.document`.
+const dollWindow = { actor: charDoc, constructor: { name: "PaperDoll" } };
+const dollEl = makeElement();
+injectDollHeaderButton(dollWindow, dollEl);
+check("doll button: a document-less window (the doll's own) is skipped", dollEl.inserted.length === 0);
+
+const npcDoc = { documentName: "Actor", id: "a2", type: "monster", hasPlayerOwner: false };
+const npcEl = makeElement();
+injectDollHeaderButton({ document: npcDoc, actor: npcDoc }, npcEl);
+check("doll button: a non-character actor sheet is skipped", npcEl.inserted.length === 0);
+
+SETTINGS_STATE.playerOwnedOnly = true;
+const gmOnlyDoc = { documentName: "Actor", id: "a3", type: "character", hasPlayerOwner: false };
+const gmOnlyEl = makeElement();
+injectDollHeaderButton({ document: gmOnlyDoc, actor: gmOnlyDoc }, gmOnlyEl);
+check("doll button: playerOwnedOnly hides it on GM-only characters", gmOnlyEl.inserted.length === 0);
+SETTINGS_STATE.playerOwnedOnly = false;
+
+check("doll button: no core hook is re-fired (side effects stay core's to trigger)",
+  !firedHooks.some((h) => /^getHeaderControls/.test(h)));
+
+globalThis.Hooks.callAll = realCallAll;
+globalThis.game.modules = realModules;
+delete SETTINGS_STATE.paperdollStrategy;
+delete globalThis.document;
+
+/* ---------------------------------------------------------------------- */
 /*  Ammunition consumption + thrown-weapon state                            */
 /* ---------------------------------------------------------------------- */
 
