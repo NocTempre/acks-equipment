@@ -1,5 +1,19 @@
 # Changelog
 
+## 0.35.0
+
+- **Uninstall — Strip Equipment Data** (macro + `api.stripModuleData`):
+  deletes the managed loadout effects (which would otherwise keep applying
+  stale modifiers forever once the module is off), reveals disguised items,
+  optionally reverts masterwork/scavenged layers to pristine, and removes
+  every module flag from actors, items, and unlinked token actors.
+- **The Paper Doll follows its sheet out.** Closing a character sheet closes
+  that actor's doll window (3.x on v14 left it orphaned).
+- **README: GM getting-started** (annotate → proficiencies → equip) and a
+  **Disabling & uninstalling** section — including the dependency-dialog trap
+  where Foundry pre-checks acks-lib for deactivation, making Animal/Group/
+  Template actors unavailable until it is re-enabled (no data is lost).
+
 Releases up to and including 0.15.1 predate this file; see the git history
 and GitHub releases for earlier changes.
 
