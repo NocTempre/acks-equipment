@@ -35,6 +35,7 @@ import {
 } from "./containers.mjs";
 import { isLocked, isConcealed, isFragile, canSeeInside, setLocked, setOpened, setConcealed } from "./containers.mjs";
 import { pickLock, bashOpen, destroyContainer, canPick, canBash } from "./locks.mjs";
+import { stripModuleData } from "./uninstall.mjs";
 import { collectEffectModifiers, sumEffectModifiers, collectStringFlags, hasEffectFlag } from "./effects.mjs";
 import { bridgeContributions } from "./abilities-bridge.mjs";
 import * as CONFIG_DATA from "./config.mjs";
@@ -187,6 +188,9 @@ export function buildApi() {
     hasEffectFlag,
     bridgeContributions, // proficiency facts read from the acks-abilities model
     EFFECT_DOMAINS,
+    // Uninstall: strip every flag/effect this module wrote, so disabling it
+    // leaves no orphaned loadout effects or masked item identities behind.
+    stripModuleData,
     // Data + constants
     config: CONFIG_DATA,
     HOOKS,

@@ -72,6 +72,52 @@ enforces the RAW.
   [socketlib](https://github.com/manuelVo/foundryvtt-socketlib).
 - **Optional:** [Paper Doll](https://theripper93.com) (`fvtt-paper-doll-ui`).
 
+## Getting started (GM workflow)
+
+The module enforces rules it can only see through data, so a character needs
+three things wired up once. All of it lives in the **Equipment Macros**
+compendium:
+
+1. **Annotate the gear.** Run *Annotate Equipment (RAW profiles)* with a token
+   selected (or nothing selected, to sweep the world). It stamps RAW weapon
+   size/qualities and container capacities onto the core items the actor
+   already owns — unrecognised gear is left alone.
+2. **Say what the character can use.** Either drag the relevant proficiencies
+   from **Equipment & Combat Proficiencies** onto the sheet (characters built
+   with acks-abilities/acks-content are read automatically through the
+   abilities bridge), or run *Configure Proficiencies* and fill in fighting
+   styles, weapon proficiency, and the armour cap by hand.
+3. **Equip things.** Use the sheet's inventory (or Paper Doll). The module
+   infers the active fighting style, applies its bonuses through one managed
+   "Equipment Loadout" Active Effect, and warns or auto-resolves when a
+   loadout breaks the RAW limits (configurable in settings: resolve / veto /
+   advisory).
+
+The **Loadout Inspector** macro explains, per actor, exactly what the module
+currently believes — styles, hands, penalties, and why. When something looks
+wrong, start there.
+
+## Disabling & uninstalling
+
+Foundry disables cleanly, but two things are worth knowing **before** you
+untick the module:
+
+- **Run *Uninstall — Strip Equipment Data* first** (in Equipment Macros) if
+  you are removing the module for good. It deletes the managed loadout
+  effects — which would otherwise keep applying stale AC/initiative/attack
+  modifiers invisibly forever — reveals disguised items, and removes every
+  `acks-equipment` flag from actors and items. Optionally it also reverts
+  masterwork/scavenged stat layers. The macro must run while the module is
+  still enabled.
+- **Watch the dependency checklist.** When you disable this module, Foundry
+  offers to also disable modules nothing else depends on — typically
+  **acks-lib**. If your world contains Animal, Group, or Template actors
+  (mounts, unit stacks, generator templates — these actor types live in
+  acks-lib), disabling acks-lib makes them *unavailable*: they vanish from
+  the sidebar and their sheets will not open. **No data is lost** — re-enable
+  acks-lib and they return exactly as they were. Leave acks-lib enabled
+  unless you are removing the whole ACKS module family.
+
 ## Development
 
 ```bash

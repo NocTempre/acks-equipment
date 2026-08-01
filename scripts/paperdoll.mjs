@@ -315,6 +315,40 @@ export function injectDollHeaderButton(app, element) {
   header.insertBefore(btn, header.querySelector("[data-action='close']"));
 }
 
+/**
+ * Every open Paper Doll window for an actor, wherever it registered.
+ *
+ * The doll has shipped as both AppV1 (`ui.windows`) and AppV2
+ * (`foundry.applications.instances`) across its versions, and its class name
+ * is its own business — so match loosely on the name and precisely on the
+ * actor, and treat "nothing found" as the normal case.
+ */
+function dollWindowsFor(actorId) {
+  const found = [];
+  const matches = (w) => {
+    if (!/paper.?doll/i.test(w?.constructor?.name ?? "")) return false;
+    const actor = w.actor ?? w.object ?? w.document;
+    return actor?.id === actorId;
+  };
+  for (const w of Object.values(ui.windows ?? {})) if (matches(w)) found.push(w);
+  for (const w of globalThis.foundry?.applications?.instances?.values?.() ?? []) if (matches(w)) found.push(w);
+  return found;
+}
+
+/**
+ * Close the doll with its sheet. The doll opens per-actor, from the sheet,
+ * but (3.x on v14) does not track the sheet's lifecycle — close the sheet and
+ * the doll just stays, which reads as a leak. The sheet is the doll's reason
+ * to exist, so it follows the sheet out.
+ */
+function closeDollWithSheet(app) {
+  const actorId = app?.actor?.id;
+  if (!actorId) return;
+  for (const doll of dollWindowsFor(actorId)) {
+    doll.close?.().catch?.(() => {});
+  }
+}
+
 export function registerPaperDoll() {
   const strategy = activeStrategy();
   if (strategy !== "paperdoll") {
@@ -350,6 +384,9 @@ export function registerPaperDoll() {
     const actor = app?.actor;
     if (actor) syncActorToDoll(actor).catch((err) => console.error(`${MODULE_ID} | paper-doll reconcile failed`, err));
   });
+  // The doll follows its sheet out. Fires for every ActorSheetV2 subclass —
+  // core's sheets and the follower card alike.
+  Hooks.on("closeActorSheetV2", (app) => closeDollWithSheet(app));
 
   if (game.user.isGM && !game.settings.get(MODULE_ID, SETTINGS.PAPERDOLL_CONFIGURED)) {
     configurePaperDoll().catch((err) => console.error(`${MODULE_ID} | Paper Doll configuration failed`, err));

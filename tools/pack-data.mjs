@@ -166,6 +166,47 @@ await actor.update({
 ui.notifications.info(\`Saved proficiency profile for \${actor.name}.\`);`,
   },
   {
+    _id: "acksEqUninstall0",
+    name: "Uninstall — Strip Equipment Data",
+    img: "icons/svg/hazard.svg",
+    command: `// Remove everything acks-equipment wrote to this world, so the module can be
+// disabled or uninstalled with nothing left behind: the managed "Equipment
+// Loadout" effects (which would otherwise keep applying stale AC/init/attack
+// modifiers forever), every flags.acks-equipment.* on actors and items, and
+// any disguise masks (revealed first, so items keep their TRUE identity).
+// Optionally also reverts masterwork/scavenged stat layers to pristine.
+// Run this BEFORE disabling the module — the macro needs the module's code.
+if (!game.user.isGM) { ui.notifications.warn("GM only."); return; }
+const api = game.modules.get("acks-equipment")?.api ?? globalThis.acksEquipment;
+if (!api?.stripModuleData) { ui.notifications.error("ACKS Equipment is not active."); return; }
+const form = await foundry.applications.api.DialogV2.prompt({
+  window: { title: "Strip ACKS Equipment data from this world?" },
+  content: \`<p>This removes the module's managed loadout effects, reveals any
+    disguised items, and deletes every <code>acks-equipment</code> flag from
+    actors and items (containers, grips, ammo state, named-item trackers,
+    proficiency profiles). It cannot be undone.</p>
+    <label class="checkbox"><input type="checkbox" name="revert">
+    Also revert masterwork / scavenged items to their original stats
+    (unchecked: they keep their current, earned values)</label>
+    <p class="notes">After it finishes, disable the module before the next
+    reload — while enabled, it rebuilds loadout effects on load. Leave
+    <b>acks-lib</b> enabled if any other ACKS module still uses it, or if the
+    world contains Animal/Group/Template actors: those actor types live in
+    acks-lib and become unavailable while it is off (they return, unharmed,
+    the moment it is re-enabled).</p>\`,
+  ok: { label: "Strip module data", callback: (_ev, btn) => new FormData(btn.form) },
+  rejectClose: false,
+});
+if (!form) return;
+const counts = await api.stripModuleData({ revertLayers: !!form.get("revert") });
+if (!counts) return;
+ui.notifications.info(
+  \`acks-equipment stripped: \${counts.effects} loadout effect(s), \${counts.items} flagged item(s), \` +
+  \`\${counts.actors} actor flag set(s), \${counts.revealed} disguise(s) revealed, \${counts.reverted} item(s) reverted. \` +
+  "You can now disable the module safely."
+);`,
+  },
+  {
     _id: "acksEqAnnotate00",
     name: "Annotate Equipment (RAW profiles)",
     img: "icons/svg/book.svg",
