@@ -11,6 +11,19 @@
   non-empty could never *become* non-empty — and emptying your last container
   re-triggered the same trap. Buckets are content whether or not anything is in
   them; the section now always renders.
+- **A locked container now actually holds against a player.** Its contents were
+  hidden from the bucket but the same items were still listed, by name, in the
+  ordinary inventory below — so "you cannot see what is inside" was decoration.
+  Those rows are now pulled out of sight for whoever cannot see in. The load on
+  the header still shows: you cannot see inside a locked chest, but you can feel
+  that it is heavy.
+- **Locks are the Judge's.** Three owner controls each opened a locked container
+  in one click — Unlock (there is no key item to check, so it was a free pass),
+  Empty, and Unmake — which left no reason to pick a lock you could click off.
+  A player facing a locked container now gets only the two controls that have to
+  beat it, Pick the lock and Break it open, both of which roll. The GM keeps all
+  three, because at a table the Judge is who opens it for you. Locking an
+  *unlocked* container is unchanged: shutting your own box is not a bypass.
 - **An empty container says it is empty** ("empty — drag gear here to stow it")
   instead of showing a bare header over an invisible drop zone. The
   no-containers-yet hint no longer points at the retired Container Manager

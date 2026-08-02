@@ -35,6 +35,7 @@ import { MATERIALS, MATERIALS_BY_DAMAGE_TYPE, setMaterial, materialOf } from "./
 import { wearBuckets, wearLabel } from "./wear.mjs";
 import {
   containerReport,
+  contentsOf,
   STONE,
   isContainer,
   emptyContainer,
@@ -399,6 +400,15 @@ function containerHeader(actor, c, onRerender) {
 
   const controls = el("div", "acks-equipment-container__controls");
 
+  // THE LOCK IS THE JUDGE'S. Three owner controls each open a locked container
+  // in one click — Unlock (there is no key item to check, so it is a free
+  // pass), Empty, and Unmake — which is the whole feature undone: why pick a
+  // lock you can simply click off? A player facing a locked container gets the
+  // two controls that have to BEAT it, pick and bash, both of which roll. The
+  // GM keeps all three, because at a table the Judge is who opens it for you
+  // (including when the character legitimately holds the key).
+  const mayBypassLock = !c.locked || game.user.isGM;
+
   if (foldable) {
     controls.append(
       ctrl(
@@ -413,15 +423,17 @@ function containerHeader(actor, c, onRerender) {
   }
 
   if (actor.isOwner) {
-    // Lock / unlock. A player holding the key can shut it again; defeating a
-    // lock does not remove it.
-    controls.append(
-      ctrl(c.locked ? "fa-unlock" : "fa-lock", c.locked ? "ACKS-EQUIPMENT.container.unlock" : "ACKS-EQUIPMENT.container.lock", async () => {
-        if (c.locked) await setOpened(c.item, true);
-        else await setLocked(c.item, true);
-        onRerender();
-      }),
-    );
+    // Lock / unlock. Locking is always available (shutting your own box is not
+    // a bypass); UNlocking is the free pass, so it follows the lock rule above.
+    if (mayBypassLock) {
+      controls.append(
+        ctrl(c.locked ? "fa-unlock" : "fa-lock", c.locked ? "ACKS-EQUIPMENT.container.unlock" : "ACKS-EQUIPMENT.container.lock", async () => {
+          if (c.locked) await setOpened(c.item, true);
+          else await setLocked(c.item, true);
+          onRerender();
+        }),
+      );
+    }
 
     if (c.locked) {
       // Only offered when the character actually has the proficiency — a
@@ -456,18 +468,21 @@ function containerHeader(actor, c, onRerender) {
       }
     }
 
-    controls.append(
-      ctrl("fa-box-open", "ACKS-EQUIPMENT.container.empty", async () => {
-        const n = await emptyContainer(actor, c.item);
-        if (n) ui.notifications.info(game.i18n.format("ACKS-EQUIPMENT.container.emptied", { n, name: c.item.name }));
-        onRerender();
-      }),
-      ctrl("fa-times", "ACKS-EQUIPMENT.container.unmake", async () => {
-        await emptyContainer(actor, c.item);
-        await c.item.unsetFlag(MODULE_ID, "container");
-        onRerender();
-      }),
-    );
+    // Both of these empty the container, so both are lock bypasses.
+    if (mayBypassLock) {
+      controls.append(
+        ctrl("fa-box-open", "ACKS-EQUIPMENT.container.empty", async () => {
+          const n = await emptyContainer(actor, c.item);
+          if (n) ui.notifications.info(game.i18n.format("ACKS-EQUIPMENT.container.emptied", { n, name: c.item.name }));
+          onRerender();
+        }),
+        ctrl("fa-times", "ACKS-EQUIPMENT.container.unmake", async () => {
+          await emptyContainer(actor, c.item);
+          await c.item.unsetFlag(MODULE_ID, "container");
+          onRerender();
+        }),
+      );
+    }
   }
 
   header.append(controls);
@@ -513,6 +528,14 @@ function buildStowedSection(actor, tab) {
       // zone under it, which reads as "broken", not "empty".
       if (!claimed) bucket.append(el("p", "acks-equipment-wear__hint", game.i18n.localize("ACKS-EQUIPMENT.container.emptyHint")));
     } else if (!c.visible) {
+      // A locked container HIDES ITS CONTENTS — and a content row still sitting
+      // in core's ordinary inventory list IS the contents, in plain sight. The
+      // rows are claimed into a list that is never attached, so the gear is out
+      // of view for whoever cannot see inside. `c.contents` is deliberately
+      // empty in the report for this case, so ask the model directly.
+      // The header's LOAD still shows: you cannot see inside a locked chest,
+      // but you can feel that it is heavy, which is exactly right.
+      claimRows(tab, contentsOf(actor, c.item.id), el("ul", "item-list unlist"), "stowed");
       // Say WHY it is empty. A locked chest showing nothing looks like a bug;
       // a locked chest saying it is locked is the game working.
       bucket.append(el("p", "acks-equipment-wear__hint", game.i18n.localize("ACKS-EQUIPMENT.container.lockedHint")));
