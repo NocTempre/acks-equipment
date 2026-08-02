@@ -1,5 +1,48 @@
 # Changelog
 
+## 0.35.2
+
+- **Containers work again — an empty one used to render nothing at all.** The
+  Stowed section was only kept if a row had actually been moved into a bucket,
+  so a container you had just created (necessarily empty) made the whole section
+  vanish: no bucket, no controls, no drop zone, and the "Annotate carrying gear"
+  button that creates containers went with it. Since the only way to put the
+  first item in is to drop onto the bucket, a container that hides until it is
+  non-empty could never *become* non-empty — and emptying your last container
+  re-triggered the same trap. Buckets are content whether or not anything is in
+  them; the section now always renders.
+- **An empty container says it is empty** ("empty — drag gear here to stow it")
+  instead of showing a bare header over an invisible drop zone. The
+  no-containers-yet hint no longer points at the retired Container Manager
+  window; it names the control that actually exists.
+- **The inventory row's Delete button is reachable again.** Core sizes its
+  control column to fit exactly its own four icons (84px for a weapon, and it
+  does not grow), so every control this module added there — draw/sheathe,
+  grip, strap, light, ready — pushed Delete off the end of the row: measured at
+  18–57px past the row's edge, i.e. clipped down to a sliver or gone entirely.
+  Widening the window could never help, because a fixed-width column gets none
+  of the extra space. Our controls now sit in their own box beside core's,
+  which is left holding exactly what it was built for.
+- **Configure Proficiencies offers the vocabulary instead of asking for it
+  blind.** Weapon proficiency was a free-text field whose hint said
+  "categories/weapons", so the size-based broad choices (`melee:tiny`) and
+  `missile:all` were unguessable — typing `tiny,small,medium` matched nothing.
+  It is now a picker: all-weapons, the four melee sizes, all missile weapons,
+  the seven categories, and a free-text field for specific weapons.
+- **A bare size is now a valid grant everywhere.** The book writes broad
+  choices i–ii as "any tiny, small, or medium melee weapons", so `tiny` is read
+  as `melee:tiny` — in the macro, in an actor flag, and in a class-training
+  effect. Weapon names also resolve through the alias table ("Great Sword" →
+  two-handed sword), and a category tolerates spacing.
+- **A proficiency profile can no longer silently mean "proficient with
+  nothing".** A list that parses to no usable token now reads as *no profile*
+  (permissive) rather than as a restriction granting nothing, which is what
+  turned one bad token into a character non-proficient with every weapon it
+  owned. Names typed into the macro are checked before saving, and the warning
+  hands the form back with the entry intact.
+- API: `grantMatches`, `normalizeGrantToken`, `classifyGrantToken` — the grant
+  grammar, inspectable. Tests: every shipped macro must now compile.
+
 ## 0.35.1
 
 - **Hotfix — the Paper Doll button no longer breaks sheets (and dolls).** The

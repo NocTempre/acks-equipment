@@ -57,8 +57,24 @@ Numeric domains sum; CSV domains collect; boolean-ish domains test presence. Add
 | `finesse` `preciseShooting` `sniping` `ambushing` `skirmishing` `unarmedFighting` `blindFighting` `mountedCombat` `riding` `berserkergang` `freeSwap` | boolean | proficiency presence tests |
 
 Per-actor proficiency profile (not effects): `flags.acks-equipment.styles` (trained
-fighting styles), `.weaponProficiency` (`"all"` or CSV of categories/weapon keys),
-`.armorMax` (heaviest armour category). Set via the Configure Proficiencies macro.
+fighting styles), `.weaponProficiency` (a CSV of grant tokens), `.armorMax`
+(heaviest armour category). Set via the Configure Proficiencies macro.
+
+**Grant tokens** (JJ p. 290) are the shared vocabulary of `.weaponProficiency`
+and the `weaponProf` / `martialWeapons` effect domains:
+
+| token | grants |
+|---|---|
+| `all` | every weapon |
+| `missile:all` | every missile weapon (broad choice v) |
+| `melee:<size>` | melee weapons of that size — `tiny`/`small`/`medium`/`large`. Broad choices i–ii are size-based, not category-based, so a **bare size is read as this**: `tiny,small,medium` is broad choice i |
+| `<category>` | `axe`, `bow`, `crossbow`, `flailHammerMace`, `swordDagger`, `spearPolearm`, `other` |
+| `<weapon>` | one named weapon, by any name config.mjs knows (aliases resolve: "Great Sword" → `twohandedsword`) |
+
+A token outside the grammar matches nothing — `api.classifyGrantToken` reports
+which kind a token is, or `"unknown"`. A profile that parses to **no** tokens is
+treated as *no profile* (permissive), never as a restriction granting nothing:
+the alternative made one typo silently non-proficient with everything.
 
 ## 4. Public API & hooks
 

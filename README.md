@@ -85,8 +85,9 @@ compendium:
 2. **Say what the character can use.** Either drag the relevant proficiencies
    from **Equipment & Combat Proficiencies** onto the sheet (characters built
    with acks-abilities/acks-content are read automatically through the
-   abilities bridge), or run *Configure Proficiencies* and fill in fighting
-   styles, weapon proficiency, and the armour cap by hand.
+   abilities bridge), or run *Configure Proficiencies* and tick the class's
+   fighting styles, weapon selections (all weapons, melee by size, all missile
+   weapons, the seven categories, or named weapons), and armour cap.
 3. **Equip things.** Use the sheet's inventory (or Paper Doll). The module
    infers the active fighting style, applies its bonuses through one managed
    "Equipment Loadout" Active Effect, and warns or auto-resolves when a

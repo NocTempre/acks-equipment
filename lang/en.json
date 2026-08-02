@@ -84,7 +84,7 @@
       "status": "Hands {used}/{budget} · {style}",
       "untrained": "untrained style",
       "manage": "Open the Container Manager",
-      "noContainers": "No containers yet — open the Container Manager to flag a pack or sack and start stowing gear.",
+      "noContainers": "No containers yet — use “Annotate carrying gear” above to flag the packs and sacks this character already carries, then drag gear onto one to stow it.",
       "head": "Head",
       "body": "Body",
       "worn": "Worn",

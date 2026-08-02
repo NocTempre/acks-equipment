@@ -134,36 +134,121 @@ ChatMessage.create({
     name: "Configure Proficiencies",
     img: "icons/svg/statue.svg",
     command: `// Set the selected actor's fighting styles, weapon proficiency, and armour cap.
+//
+// Weapon proficiency is a list of GRANT TOKENS (JJ p. 290), not free prose — so
+// this offers the whole vocabulary as boxes: the size-based broad choices (i-ii),
+// all missile weapons (v), the category-based narrow choices (i-vi), or the
+// unrestricted grant. Names typed by hand are checked before they are saved: a
+// token matching no weapon used to save silently and leave the character
+// non-proficient with everything it owned.
 const MOD = "acks-equipment";
+const api = game.modules.get(MOD)?.api ?? globalThis.acksEquipment;
+if (!api) { ui.notifications.error("ACKS Equipment is not active."); return; }
 const actor = canvas.tokens.controlled[0]?.actor ?? game.user.character;
 if (!actor) { ui.notifications.warn("Select a token or assign a character."); return; }
-const cur = {
-  styles: actor.getFlag(MOD, "styles") ?? "single,missile",
-  weaponProficiency: actor.getFlag(MOD, "weaponProficiency") ?? "all",
-  armorMax: actor.getFlag(MOD, "armorMax") ?? "heavy",
+
+// RAW: every character is trained in the single-weapon and missile styles
+// (RR p. 106), so those two are stated, not offered.
+const STYLES = [["dual", "Two weapons (dual wield)"], ["twoHanded", "Two-handed"], ["weaponShield", "Weapon &amp; shield"]];
+const SIZES = [
+  ["tiny", "Tiny", "dagger, knife, club, sap"],
+  ["small", "Small", "short sword, hand axe, war hammer, javelin"],
+  ["medium", "Medium", "sword, mace, flail, spear, staff"],
+  ["large", "Large", "two-handed sword, great axe, pole arm, morning star"],
+];
+const CATEGORIES = [
+  ["axe", "Axes"],
+  ["bow", "Bows"],
+  ["crossbow", "Crossbows"],
+  ["flailHammerMace", "Flails, hammers &amp; maces"],
+  ["swordDagger", "Swords &amp; daggers"],
+  ["spearPolearm", "Spears &amp; pole arms"],
+  ["other", "Bolas, cestus, nets, saps, slings, staff-slings &amp; whips"],
+];
+const ARMOURS = [["unarmored", "None"], ["veryLight", "Very light"], ["light", "Light"], ["medium", "Medium"], ["heavy", "Heavy"]];
+
+// Decompose what is stored into the boxes it came from; a token naming a weapon
+// (or a typo) goes back into the free-text field it was typed in.
+const stored = String(actor.getFlag(MOD, "weaponProficiency") ?? "all").split(",").map((s) => s.trim()).filter(Boolean);
+let state = {
+  styles: new Set(String(actor.getFlag(MOD, "styles") ?? "single,missile").split(",").map((s) => s.trim()).filter(Boolean)),
+  grants: new Set(stored.filter((t) => !["weapon", "unknown"].includes(api.classifyGrantToken(t)))),
+  named: stored.filter((t) => ["weapon", "unknown"].includes(api.classifyGrantToken(t))).join(", "),
+  armour: String(actor.getFlag(MOD, "armorMax") ?? "heavy"),
 };
-const armours = ["unarmored", "veryLight", "light", "medium", "heavy"];
-const content = \`<div style="display:grid;gap:.5rem">
-  <label>Fighting styles (CSV of single, missile, dual, twoHanded, weaponShield)
-    <input name="styles" value="\${cur.styles}"></label>
-  <label>Weapon proficiency ("all" or CSV of categories/weapons)
-    <input name="weaponProficiency" value="\${cur.weaponProficiency}"></label>
+// Tokens are compared canonically (so a stored "tiny" ticks the melee-size box)
+// but STORED as ticked, which keeps the saved list readable.
+const on = (set, value) => [...set].some((s) => api.normalizeGrantToken(s) === api.normalizeGrantToken(value));
+
+const box = (name, value, label, checked, note) =>
+  \`<label style="display:flex;gap:.4rem;align-items:baseline"><input type="checkbox" name="\${name}" value="\${value}"\${checked ? " checked" : ""}>
+    <span>\${label}\${note ? \` <span style="opacity:.6;font-size:.9em">— \${note}</span>\` : ""}</span></label>\`;
+
+const render = (st) => \`<div style="display:grid;gap:.75rem">
+  <fieldset><legend>Fighting styles</legend>
+    <p class="notes">Single-weapon and missile styles are always trained (RR p. 106) and are not listed.</p>
+    \${STYLES.map(([k, l]) => box("style", k, l, on(st.styles, k))).join("")}
+  </fieldset>
+  <fieldset><legend>Weapon proficiency</legend>
+    <p class="notes">Tick the class's weapon selections. <b>All weapons</b> overrides everything below it;
+      ticking nothing at all clears the profile, leaving the character unrestricted.</p>
+    \${box("grant", "all", "<b>All weapons</b> (unrestricted)", on(st.grants, "all"))}
+    <p class="notes" style="margin-bottom:0"><b>Any melee weapon of these sizes</b> (broad choices i-ii)</p>
+    \${SIZES.map(([k, l, ex]) => box("grant", \`melee:\${k}\`, l, on(st.grants, k), ex)).join("")}
+    <p class="notes" style="margin-bottom:0"><b>Missile</b></p>
+    \${box("grant", "missile:all", "All missile weapons", on(st.grants, "missile:all"), "broad choice v")}
+    <p class="notes" style="margin-bottom:0"><b>Weapon categories</b> (narrow choices i-vi)</p>
+    \${CATEGORIES.map(([k, l]) => box("grant", k, l, on(st.grants, k))).join("")}
+    <label style="display:block;margin-top:.4rem">Specific weapons, comma-separated (narrow choice vii, broad choice vi)
+      <input name="named" value="\${foundry.utils.escapeHTML(st.named)}" placeholder="e.g. sword, dagger, short bow"></label>
+  </fieldset>
   <label>Maximum armour category
-    <select name="armorMax">\${armours.map((a) => \`<option value="\${a}" \${a === cur.armorMax ? "selected" : ""}>\${a}</option>\`).join("")}</select></label>
+    <select name="armorMax">\${ARMOURS.map(([k, l]) => \`<option value="\${k}"\${k === st.armour ? " selected" : ""}>\${l}</option>\`).join("")}</select></label>
 </div>\`;
-const form = await foundry.applications.api.DialogV2.prompt({
-  window: { title: \`Proficiencies — \${actor.name}\` },
-  content,
-  ok: { label: "Save", callback: (_ev, btn) => new FormData(btn.form) },
-  rejectClose: false,
-});
-if (!form) return;
+
+// Loop rather than bail on a bad token: answering "no" to the warning must hand
+// back the form as it was typed, not throw the whole entry away.
+let typed = [];
+for (;;) {
+  const form = await foundry.applications.api.DialogV2.prompt({
+    window: { title: \`Proficiencies — \${actor.name}\`, resizable: true },
+    position: { width: 520 },
+    content: render(state),
+    ok: { label: "Save", callback: (_ev, btn) => new FormData(btn.form) },
+    rejectClose: false,
+  });
+  if (!form) return;
+  state = {
+    styles: new Set(form.getAll("style")),
+    grants: new Set(form.getAll("grant")),
+    named: String(form.get("named") ?? ""),
+    armour: String(form.get("armorMax")),
+  };
+  typed = state.named.split(",").map((s) => s.trim()).filter(Boolean);
+  const unknown = typed.filter((t) => api.classifyGrantToken(t) === "unknown");
+  if (!unknown.length) break;
+  const ok = await foundry.applications.api.DialogV2.confirm({
+    window: { title: "Unrecognised weapons" },
+    content: \`<p>These match no weapon this module knows, so they will grant nothing:
+      <b>\${foundry.utils.escapeHTML(unknown.join(", "))}</b>.</p>
+      <p class="notes">Use the weapon's RAW name — the ones in core's equipment compendium.
+      Choose <b>No</b> to go back and correct them, or <b>Yes</b> to save as typed.</p>\`,
+    rejectClose: false,
+  });
+  if (ok) break;
+}
+
+const grants = [...state.grants];
+const tokens = grants.includes("all") ? ["all"] : [...new Set([...grants, ...typed.map((t) => t.toLowerCase())])];
+const styles = [...new Set(["single", "missile", ...state.styles])];
 await actor.update({
-  [\`flags.\${MOD}.styles\`]: form.get("styles"),
-  [\`flags.\${MOD}.weaponProficiency\`]: form.get("weaponProficiency"),
-  [\`flags.\${MOD}.armorMax\`]: form.get("armorMax"),
+  [\`flags.\${MOD}.styles\`]: styles.join(","),
+  // Nothing ticked = no declared restriction. Clearing the flag is what says
+  // that; an empty list would read as a profile granting nothing.
+  ...(tokens.length ? { [\`flags.\${MOD}.weaponProficiency\`]: tokens.join(",") } : { [\`flags.\${MOD}.-=weaponProficiency\`]: null }),
+  [\`flags.\${MOD}.armorMax\`]: state.armour,
 });
-ui.notifications.info(\`Saved proficiency profile for \${actor.name}.\`);`,
+ui.notifications.info(\`\${actor.name}: styles \${styles.join(", ")} · weapons \${tokens.join(", ") || "unrestricted"} · armour up to \${state.armour}.\`);`,
   },
   {
     _id: "acksEqUninstall0",

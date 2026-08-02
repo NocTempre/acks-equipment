@@ -180,7 +180,6 @@ function injectLightControls(list, actor) {
     // A light source is type `item` and has no `equipped` field — the control
     // shows on the item itself; "held" is the formation light record, below.
     if (!type || li.querySelector(".acks-equipment-light")) continue;
-    const controls = li.querySelector(".list-header__controls") ?? li.querySelector(".item-row") ?? li;
     // A TORCH carried as a STACK (an `item`, not a wielded weapon) gets a "Ready"
     // control instead — but that is a pure equipment action, so it lives in
     // injectTorchReady (which runs without acks-formation). Skip it here so a
@@ -197,7 +196,7 @@ function injectLightControls(list, actor) {
         ev.stopPropagation();
         Promise.resolve(run()).catch((err) => console.error(`${MODULE_ID} | light control failed`, err));
       });
-      controls.insertBefore(a, controls.firstChild);
+      rowControls(li).append(a);
     };
     if (held) {
       // Douse (and re-light) the held source; shutter a lantern.
@@ -235,14 +234,37 @@ function injectGripControls(list, loadout) {
       // The flag change fires updateItem → the sheet re-renders → fresh buckets.
       cycleGrip(entry.item).catch((err) => console.error(`${MODULE_ID} | grip cycle failed`, err));
     });
-    const controls = li.querySelector(".list-header__controls") ?? li.querySelector(".item-row") ?? li;
-    controls.insertBefore(a, controls.firstChild);
+    rowControls(li).append(a);
   }
 }
 
-/** The controls container within an inventory row (where item-control links go). */
+/**
+ * The box our injected controls go in — created on first use, sitting just
+ * before core's own controls in the row.
+ *
+ * Deliberately NOT core's `.list-header__controls`: core gives that column a
+ * FIXED width sized to fit exactly its own icons and nothing more
+ * (`.controls__weapon { width: 84px }`, `.controls__armor { 60px }`,
+ * `.controls__item { 35px }`, none of which grow). Anything we add there
+ * overflows it, and because the box is centred the overflow spills past the
+ * row's right edge, where the sheet clips it — which is how Delete became a
+ * sliver. Widening the window never helped: the column is a fixed width, so the
+ * extra space all goes to the flexible name/tag columns instead.
+ *
+ * With our controls in their own auto-sized box, core's column holds exactly
+ * the four controls it was measured for and every one of them stays clickable.
+ */
 function rowControls(li) {
-  return li.querySelector(".list-header__controls") ?? li.querySelector(".item-row") ?? li;
+  const existing = li.querySelector(".acks-equipment-row-controls");
+  if (existing) return existing;
+  const box = el("div", "acks-equipment-row-controls");
+  const row = li.querySelector(".item-row");
+  if (!row) {
+    li.append(box);
+    return box;
+  }
+  row.insertBefore(box, row.querySelector(".list-header__controls"));
+  return box;
 }
 
 /**
@@ -265,7 +287,7 @@ function injectTorchReady(tab, actor) {
       ev.stopPropagation();
       prepareTorch(actor, item).catch((err) => console.error(`${MODULE_ID} | ready torch failed`, err));
     });
-    rowControls(li).insertBefore(a, rowControls(li).firstChild);
+    rowControls(li).append(a);
   }
 }
 
@@ -291,7 +313,7 @@ function injectDrawSheathe(tab, actor) {
       ev.stopPropagation();
       (equipped ? sheatheItem(item) : drawItem(item)).catch((err) => console.error(`${MODULE_ID} | draw/sheathe failed`, err));
     });
-    rowControls(li).insertBefore(a, rowControls(li).firstChild);
+    rowControls(li).append(a);
   }
 }
 
@@ -317,7 +339,7 @@ function injectStrapControls(tab, actor) {
       ev.stopPropagation();
       cycleStrap(item).catch((err) => console.error(`${MODULE_ID} | strap cycle failed`, err));
     });
-    rowControls(li).insertBefore(a, rowControls(li).firstChild);
+    rowControls(li).append(a);
   }
 }
 
@@ -477,7 +499,6 @@ function buildStowedSection(actor, tab) {
   }
   section.append(head);
 
-  let moved = 0;
   for (const c of report) {
     const bucket = el("div", `acks-equipment-wear__bucket acks-equipment-container${c.over ? " over" : ""}${c.locked ? " locked" : ""}`);
     bucket.dataset.dropTarget = c.item.id;
@@ -485,8 +506,12 @@ function buildStowedSection(actor, tab) {
 
     if (c.visible && !c.concealed) {
       const list = el("ul", "item-list unlist");
-      moved += claimRows(tab, c.contents, list, "stowed");
+      const claimed = claimRows(tab, c.contents, list, "stowed");
       bucket.append(list);
+      // An empty container is a place to put things, so say so on the thing you
+      // put them on. Without this the bucket is a bare header with a silent drop
+      // zone under it, which reads as "broken", not "empty".
+      if (!claimed) bucket.append(el("p", "acks-equipment-wear__hint", game.i18n.localize("ACKS-EQUIPMENT.container.emptyHint")));
     } else if (!c.visible) {
       // Say WHY it is empty. A locked chest showing nothing looks like a bug;
       // a locked chest saying it is locked is the game working.
@@ -501,7 +526,15 @@ function buildStowedSection(actor, tab) {
     const hint = el("p", "acks-equipment-wear__hint", game.i18n.localize("ACKS-EQUIPMENT.wear.noContainers"));
     section.append(hint);
   }
-  return moved || !report.length || report.some((c) => !c.visible || c.concealed) ? section : null;
+
+  // ALWAYS render. This used to return null unless a row had actually been
+  // moved into a bucket, which deadlocked the whole feature: a container you had
+  // just created was empty, so the section vanished — taking with it the bucket,
+  // its controls, its drop zone, and the button that creates containers. The only
+  // way to fill a container is to drop onto its bucket, so a container that
+  // hides until it is non-empty can never become non-empty. A bucket is content
+  // whether or not anything is in it, and `moved` was never the right question.
+  return section;
 }
 
 /**

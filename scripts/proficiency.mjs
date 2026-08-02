@@ -12,7 +12,7 @@
  *   flags.acks-equipment.armorTraining      (effect) integer categories added
  */
 import { MODULE_ID, ACTOR_FLAGS, EFFECT_DOMAINS, SETTINGS, ABILITIES_ID } from "./constants.mjs";
-import { ARMOR_LADDER, ARMOR_GATED_SKILLS, ARMOR_GATE_MAX, normalizeName } from "./config.mjs";
+import { ARMOR_LADDER, ARMOR_GATED_SKILLS, ARMOR_GATE_MAX, WEAPONS, WEAPON_ALIASES, normalizeName } from "./config.mjs";
 import { collectStringFlags, sumEffectModifiers, hasEffectFlag } from "./effects.mjs";
 
 /**
@@ -73,6 +73,48 @@ function raiseCategory(category, steps) {
 /** Known weapon-category tokens (JJ p. 290 narrow/broad groupings). */
 const CATEGORY_TOKENS = new Set(["axe", "bow", "crossbow", "flailhammermace", "sworddagger", "spearpolearm", "other"]);
 
+/** Weapon sizes (RR p. 127) — the axis broad choices i and ii select on. */
+const SIZE_TOKENS = new Set(["tiny", "small", "medium", "large"]);
+
+/**
+ * Canonicalise a grant token.
+ *
+ * The only liberty taken is the bare SIZE: the book writes broad choices i and
+ * ii as "any tiny, small, or medium melee weapons", so `tiny,small,medium` is
+ * what a Judge types — and both size-based choices are melee, so a bare size can
+ * only mean `melee:<size>`. Accepting it here means the shorthand works
+ * everywhere a grant is read (the macro, an actor flag, a class-training effect)
+ * rather than in one of them.
+ */
+export function normalizeGrantToken(token) {
+  const t = String(token ?? "").trim().toLowerCase();
+  return SIZE_TOKENS.has(t) ? `melee:${t}` : t;
+}
+
+/** The canonical WEAPONS key a token names (aliases resolved), or "". */
+function weaponTokenKey(token) {
+  const key = normalizeName(token);
+  if (WEAPONS[key]) return key;
+  const alias = WEAPON_ALIASES[key];
+  return alias && WEAPONS[alias] ? alias : "";
+}
+
+/**
+ * What KIND of grant a token is — the grammar, made inspectable so a
+ * configuration UI can offer the vocabulary instead of asking for it blind, and
+ * can say when a token will never match anything.
+ * @returns {"all"|"missile"|"meleeSize"|"category"|"weapon"|"unknown"|""}
+ */
+export function classifyGrantToken(token) {
+  const t = normalizeGrantToken(token);
+  if (!t) return "";
+  if (t === "all") return "all";
+  if (t === "missile:all") return "missile";
+  if (t.startsWith("melee:")) return SIZE_TOKENS.has(t.slice(6)) ? "meleeSize" : "unknown";
+  if (CATEGORY_TOKENS.has(normalizeName(t))) return "category";
+  return weaponTokenKey(t) ? "weapon" : "unknown";
+}
+
 /**
  * Grant-token grammar for class training (JJ p. 290). A proficiency grant is a
  * CSV of tokens; the class's selection chunks are expressed with these:
@@ -80,19 +122,27 @@ const CATEGORY_TOKENS = new Set(["axe", "bow", "crossbow", "flailhammermace", "s
  *   missile:all         every missile weapon (broad choice v)
  *   melee:<size>        melee weapons of that size — broad choices i and ii are
  *                       size-based ("any tiny, small, or medium melee weapons"),
- *                       not category-based, so sizes are first-class here
+ *                       not category-based, so sizes are first-class here. A
+ *                       bare `tiny` / `small` / `medium` / `large` means this.
  *   <category>          axe | bow | crossbow | flailHammerMace | swordDagger |
  *                       spearPolearm | other
- *   <weaponKey>         a single named weapon (the restricted list)
+ *   <weaponKey>         a single named weapon (the restricted list), by any name
+ *                       config.mjs knows — "Great Sword" reaches twohandedsword
+ *
+ * A token outside the grammar (`classifyGrantToken` → "unknown") matches
+ * nothing. That is not a silent no-op: a profile with ONLY unknown tokens still
+ * counts as a declared restriction, so the actor reads as non-proficient with
+ * everything. The Configure Proficiencies macro warns rather than let that pass.
  */
 export function grantMatches(token, profile) {
-  const t = String(token).trim().toLowerCase();
+  const t = normalizeGrantToken(token);
   if (!t) return false;
   if (t === "all") return true;
   if (t === "missile:all") return !!profile.missile;
   if (t.startsWith("melee:")) return !!profile.melee && String(profile.size).toLowerCase() === t.slice(6);
-  if (CATEGORY_TOKENS.has(t)) return String(profile.cat).toLowerCase() === t;
-  return profile.key === normalizeName(t);
+  if (CATEGORY_TOKENS.has(normalizeName(t))) return String(profile.cat).toLowerCase() === normalizeName(t);
+  const key = weaponTokenKey(t);
+  return !!key && profile.key === key;
 }
 
 /**
@@ -101,18 +151,21 @@ export function grantMatches(token, profile) {
  * @returns {{all:boolean, tokens:Set<string>}}
  */
 export function weaponProficiency(actor) {
-  const tokens = new Set([
-    ...collectStringFlags(actor, EFFECT_DOMAINS.WEAPON_PROF),
-    ...collectStringFlags(actor, EFFECT_DOMAINS.MARTIAL_WEAPONS),
-  ]);
+  const tokens = new Set();
+  const add = (t) => {
+    const token = normalizeGrantToken(t);
+    if (token) tokens.add(token);
+  };
+  for (const t of collectStringFlags(actor, EFFECT_DOMAINS.WEAPON_PROF)) add(t);
+  for (const t of collectStringFlags(actor, EFFECT_DOMAINS.MARTIAL_WEAPONS)) add(t);
   const flag = actor.getFlag?.(MODULE_ID, ACTOR_FLAGS.WEAPON_PROF);
-  if (flag != null && flag !== "") {
-    String(flag).split(",").map((s) => s.trim().toLowerCase()).filter(Boolean).forEach((t) => tokens.add(t));
-  } else if (!tokens.size) {
-    // No profile and no training chunks: stay permissive rather than penalise
-    // every un-configured character.
-    return { all: true, tokens };
-  }
+  if (flag != null) String(flag).split(",").forEach(add);
+  // No profile and no training chunks: stay permissive rather than penalise
+  // every un-configured character. A profile that parses to NO tokens (blank,
+  // or nothing but separators) is likewise no profile — reading it as
+  // "proficient with nothing" turned a slip of the keyboard into a character
+  // non-proficient with every weapon it owns, and said nothing about it.
+  if (!tokens.size) return { all: true, tokens };
   return { all: tokens.has("all"), tokens };
 }
 

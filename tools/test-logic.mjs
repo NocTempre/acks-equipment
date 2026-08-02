@@ -63,8 +63,8 @@ const S = new URL("../scripts/", import.meta.url);
 const { classifyWeapon, handCost, equipmentClass } = await import(new URL("profiles.mjs", S));
 const { getLoadout, VIOLATION } = await import(new URL("loadout.mjs", S));
 const { buildLoadoutChanges } = await import(new URL("effects.mjs", S));
-const { weaponProficiency, isWeaponProficient, armorMax, isArmorProficient, thiefSkillsGated, swashbucklingAC } = await import(new URL("proficiency.mjs", S));
-const { buildProficiencies, buildSamples, buildActors } = await import(new URL("../tools/pack-data.mjs", import.meta.url));
+const { weaponProficiency, isWeaponProficient, armorMax, isArmorProficient, thiefSkillsGated, swashbucklingAC, classifyGrantToken } = await import(new URL("proficiency.mjs", S));
+const { buildProficiencies, buildSamples, buildActors, buildMacros } = await import(new URL("../tools/pack-data.mjs", import.meta.url));
 const { computeAttackMods } = await import(new URL("roll-wrap.mjs", S));
 const { readiedWeaponData, prepareTorch, unarmedStrikeData, masterworkTiersFor, addToDamage, setMasterwork, scavengeItem, clearScavenged, rollScavengedD20s, setShieldVariant } = await import(new URL("actions.mjs", S));
 const { cycleStrap, strapOf } = await import(new URL("overlays/shield-variants.mjs", S));
@@ -184,6 +184,28 @@ check("Swashbuckling without proficiency → 0", swashbucklingAC(actor([]), { ar
 // non-proficient weapon surfaces an advisory (never blocks)
 const npLoadout = getLoadout(actor([weapon("Battle Axe", { melee: true, id: "ax" })], { flags: { weaponProficiency: "swordDagger" } }));
 check("non-proficient weapon → advisory, still legal", npLoadout.violations.some((v) => v.type === VIOLATION.WEAPON_NOT_PROFICIENT && v.advisory) && npLoadout.legal);
+
+// --- grant-token grammar (JJ p. 290) -----------------------------------------
+const daggerP = classifyWeapon(weapon("Dagger", { melee: true }));
+const greatP = classifyWeapon(weapon("Two-Handed Sword", { melee: true }));
+const sbowP = classifyWeapon(weapon("Short Bow", { missile: true, melee: false }));
+// The book writes broad choices i-ii as sizes ("any tiny, small, or medium melee
+// weapons"), so a bare size is what a Judge types. It means melee:<size>.
+const bySize = actor([], { flags: { weaponProficiency: "tiny,small,medium" } });
+check("bare sizes grant melee weapons of that size", isWeaponProficient(bySize, daggerP) && isWeaponProficient(bySize, swordP));
+check("bare sizes stop at the sizes listed", !isWeaponProficient(bySize, greatP));
+check("a melee size grant never covers a missile weapon", !isWeaponProficient(bySize, sbowP));
+check("melee:<size> long form still matches", isWeaponProficient(actor([], { flags: { weaponProficiency: "melee:tiny" } }), daggerP));
+const missileOnly = actor([], { flags: { weaponProficiency: "missile:all" } });
+check("missile:all covers a bow, not a sword", isWeaponProficient(missileOnly, sbowP) && !isWeaponProficient(missileOnly, swordP));
+check("category token tolerates spacing", isWeaponProficient(actor([], { flags: { weaponProficiency: "sword dagger" } }), swordP));
+check("named weapon resolves through an alias", isWeaponProficient(actor([], { flags: { weaponProficiency: "great sword" } }), greatP));
+check("token kinds are reported", classifyGrantToken("tiny") === "meleeSize" && classifyGrantToken("swordDagger") === "category"
+  && classifyGrantToken("missile:all") === "missile" && classifyGrantToken("all") === "all"
+  && classifyGrantToken("Great Sword") === "weapon" && classifyGrantToken("pointy stick") === "unknown");
+// A profile that parses to nothing is not a profile granting nothing: reading it
+// that way left characters silently non-proficient with every weapon they owned.
+check("a profile that parses to no tokens stays permissive", isWeaponProficient(actor([], { flags: { weaponProficiency: " , " } }), swordP));
 
 // --- Phase 2: proficiencies compendium ---------------------------------------
 const profs = buildProficiencies();
@@ -1622,5 +1644,26 @@ check("disguise shows the apparent name/value/damage", magic.name === "Old Sword
 check("disguise keeps the true identity hidden in a flag", isDisguised(magic) && magic._flags.disguise.true.name === "Flametongue" && magic._flags.disguise.true.cost === 5000);
 await revealItem(magic);
 check("reveal restores the true item + clears the disguise", magic.name === "Flametongue" && magic.system.cost === 5000 && magic.system.damage === "1d6+2" && !isDisguised(magic));
+
+/* ---------------------------------------------------------------------- */
+/*  Shipped macros compile                                                 */
+/* ---------------------------------------------------------------------- */
+
+// A macro is a STRING built inside a template literal, so a mis-escaped `${` or
+// backtick produces a document that only fails when a player clicks it. Compile
+// each command exactly the way Macro#execute does — an async function whose body
+// is the command wrapped in a BLOCK, which is what makes top-level `await`,
+// `return`, and re-declaring `actor` legal — so a broken one fails here instead.
+const AsyncFunction = Object.getPrototypeOf(async function () {}).constructor;
+const macros = buildMacros();
+check("macros compile as Foundry runs them (async function bodies)", macros.every((m) => {
+  try {
+    new AsyncFunction("speaker", "actor", "token", "character", "scope", "event", `{${m.command}\n}`);
+    return true;
+  } catch (err) {
+    console.error(`  macro "${m.name}" does not compile: ${err.message}`);
+    return false;
+  }
+}));
 
 console.log(`test-logic: all ${pass} checks passed`);

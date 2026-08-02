@@ -277,6 +277,32 @@
   outline-offset: -2px;
 }
 
+/* --- Injected row controls ------------------------------------------- *
+ * Our controls (grip, draw/sheathe, strap, light, ready) get their OWN box in
+ * the inventory row rather than joining core's. Core's control column is a
+ * fixed width measured to fit exactly its own icons — 84px for a weapon, 60px
+ * for armour, 35px for an item — so anything we added there overflowed it and
+ * pushed core's Delete off the end of the row, where the sheet clipped it.
+ * Widening the window could not help: a fixed-width column gets none of the
+ * extra space. This box sizes to its content and never shrinks; core's column
+ * is then left holding exactly what it was built for. See sheet.mjs
+ * rowControls(). */
+
+.acks-equipment-row-controls {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  flex: 0 0 auto;
+  white-space: nowrap;
+}
+
+/* Core's column must not be squeezed either, or Delete clips again on a narrow
+ * sheet. Scoped through our own box, so rows we never touched keep core's
+ * layout exactly as it ships. */
+.acks-equipment-row-controls ~ .list-header__controls {
+  flex-shrink: 0;
+}
+
 /* --- Grip control (wear buckets) -------------------------------------- */
 
 .acks-equipment-grip {

@@ -8,7 +8,7 @@
 import { MODULE_ID, HOOKS, EFFECT_DOMAINS, ITEM_FLAGS } from "./constants.mjs";
 import { getLoadout, VIOLATION, trainedStyles, specializedStyles, handBudget, heldLightHands } from "./loadout.mjs";
 import { classifyWeapon, handCost, focusGroup, weaponKey, equipmentClass } from "./profiles.mjs";
-import { weaponProficiency, isWeaponProficient, armorMax, isArmorProficient, thiefSkillsGated, isArmorGatedSkill } from "./proficiency.mjs";
+import { weaponProficiency, isWeaponProficient, armorMax, isArmorProficient, thiefSkillsGated, isArmorGatedSkill, grantMatches, normalizeGrantToken, classifyGrantToken } from "./proficiency.mjs";
 import { refreshLoadout } from "./enforce.mjs";
 import { planItemLoss, stonesAtRisk, isVulnerable, materialOf, setMaterial, MATERIALS } from "./overlays/item-loss.mjs";
 import { maneuverMods, MANEUVERS } from "./overlays/maneuvers.mjs";
@@ -107,6 +107,12 @@ export function buildApi() {
     isArmorProficient,
     thiefSkillsGated,
     isArmorGatedSkill,
+    // The class-training grant grammar, inspectable: what a token means, and
+    // whether it means anything at all. The Configure Proficiencies macro builds
+    // its picker from these rather than re-stating the grammar in a second place.
+    grantMatches,
+    normalizeGrantToken,
+    classifyGrantToken,
     // Overlays
     planItemLoss,
     stonesAtRisk,
